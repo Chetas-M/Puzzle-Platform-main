@@ -1,0 +1,22 @@
+{
+  "name": "puzzle-platform",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "client",
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:new": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "build:new": "npm run build -w packages/contracts && npm run build -w apps/web && npm run build -w apps/api",
+    "test:new": "npm run test -w packages/contracts && npm run test -w apps/api && npm run test -w apps/web",
+    "dev": "npm run dev -w apps/api",
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm run dev -w apps/api",
+    "build": "npm --prefix client run build",
+    "start": "npm run start -w apps/api"
+  }
+}

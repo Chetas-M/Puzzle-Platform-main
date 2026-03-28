@@ -1,0 +1,471 @@
+[
+  {
+    "slug": "http-error-chain",
+    "title": "HTTP Error Chain",
+    "type": "web_http",
+    "answerKey": "418",
+    "prompt": "Trigger intentional HTTP status codes by making one targeted link edit. Final submission is the finale code from the chain.",
+    "builtinUtils": [
+      "encodingChain",
+      "hexViewer"
+    ],
+    "externalLinks": [
+      {
+        "label": "HTTP Status Reference",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the HTTP error chain files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "ascii-numeric-sample",
+    "title": "ASCII Numeric Decode",
+    "type": "ascii_numeric",
+    "answerKey": "COSC 7989",
+    "prompt": "Decode ASCII-based numeric clues from the provided puzzle text files and submit the final key.",
+    "builtinUtils": [
+      "baseConverter",
+      "encodingChain",
+      "hexViewer"
+    ],
+    "externalLinks": [
+      {
+        "label": "ASCII Table",
+        "url": "https://www.asciitable.com/"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the ASCII puzzle files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "audio-morse-sample",
+    "title": "Audio Morse",
+    "type": "audio_morse",
+    "answerKey": "HELP",
+    "prompt": "Decode the morse audio pulse timings to recover the hidden word.",
+    "builtinUtils": [
+      "cipherDecoder",
+      "frequencyAnalyzer"
+    ],
+    "externalLinks": [
+      {
+        "label": "Morse Reference",
+        "url": "https://morsecode.world/international/translator.html"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the audio morse files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "book-cipher-puzzle",
+    "title": "Book Cipher",
+    "type": "book_cipher",
+    "answerKey": "CLUE",
+    "prompt": "Use coordinate references against the book text to reconstruct the hidden keyword.",
+    "builtinUtils": [
+      "cipherDecoder",
+      "baseConverter"
+    ],
+    "externalLinks": [
+      {
+        "label": "Character Counter",
+        "url": "https://www.charactercountonline.com/"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the book cipher files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "fix-errors-participant-pack",
+    "title": "Fix Errors Participant",
+    "type": "fix_errors",
+    "answerKey": "TREASURE",
+    "prompt": "Repair the buggy script and decode the binary payload to recover the final word.",
+    "builtinUtils": [
+      "hashCalculator",
+      "bitwiseCalculator"
+    ],
+    "externalLinks": [
+      {
+        "label": "Python Docs",
+        "url": "https://docs.python.org/3/"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the bug-fix participant files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "fix-errors-organizer-pack",
+    "title": "Fix Errors Organizer",
+    "type": "fix_errors",
+    "answerKey": "TREASURE",
+    "prompt": "Use organizer pack references to verify repaired logic and confirm the decoded secret word.",
+    "builtinUtils": [
+      "hashCalculator",
+      "bitwiseCalculator"
+    ],
+    "externalLinks": [
+      {
+        "label": "Python Docs",
+        "url": "https://docs.python.org/3/"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the bug-fix organizer files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "html-inspect-sample",
+    "title": "HTML Inspect",
+    "type": "html_inspect",
+    "answerKey": "PHOENIX",
+    "prompt": "Inspect DOM/comments and hidden HTML sections to locate the embedded key.",
+    "builtinUtils": [
+      "hexViewer",
+      "encodingChain"
+    ],
+    "externalLinks": [
+      {
+        "label": "HTML Inspector Guide",
+        "url": "https://developer.mozilla.org/en-US/docs/Learn/Tools_and_testing/Cross_browser_testing/Your_own_automation_environment"
+      }
+    ],
+    "isInspectPuzzle": true,
+    "isolatedUrl": "/challenge/html-inspect-sample",
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the HTML inspect files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "image-cipher",
+    "title": "Image Cipher",
+    "type": "image_cipher",
+    "answerKey": "KEY",
+    "prompt": "Adjust image properties to reveal hidden text from visual layers and submit the recovered key word.",
+    "builtinUtils": [
+      "frequencyAnalyzer",
+      "encodingChain"
+    ],
+    "externalLinks": [
+      {
+        "label": "Photopea",
+        "url": "https://www.photopea.com/"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the image cipher files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "maze-300-moves",
+    "title": "Maze 300 Moves",
+    "type": "maze",
+    "answerKey": "R,R,R,R,R,R,D,D,D,D,L,L,L,L,L,L,D,D,R,R,D,D,L,L,D,D,D,D,R,R,R,R,D,D,L,L,L,L,D,D,D,D,D,D,R,R,D,D,R,R,R,R,U,U,L,L,U,U,R,R,U,U,U,U,R,R,R,R,D,D,L,L,D,D,D,D,R,R,U,U,R,R,R,R,R,R,R,R,D,D,L,L,L,L,D,D,D,D,D,D,R,R,U,U,U,U,R,R,R,R,D,D,L,L,D,D,R,R,D,D,L,L,L,L,D,D,R,R,D,D,L,L,L,L,U,U,L,L,U,U,U,U,L,L,L,L,D,D,D,D,D,D,R,R,D,D,L,L,D,D,L,L,D,D,R,R,R,R,R,R,R,R,R,R,U,U,R,R,D,D,R,R,R,R,R,R,U,U,R,R,R,R,U,U,U,U,L,L,D,D,L,L,L,L,D,D,L,L,U,U,U,U,U,U,R,R,U,U,R,R,U,U,R,R,D,D,D,D,R,R,U,U,U,U,R,R,D,D,R,R,U,U,U,U,R,R,D,D,D,D,D,D,D,D,L,L,U,U,L,L,D,D,D,D,D,D,D,D,R,R,U,U,R,R,U,U,R,R,U,U,U,U,R,R,D,D,D,D,D,D,D,D",
+    "prompt": "Find the correct movement route through the maze and submit the full move sequence.",
+    "builtinUtils": [
+      "encodingChain",
+      "baseConverter"
+    ],
+    "externalLinks": [
+      {
+        "label": "Regex101",
+        "url": "https://regex101.com/"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the maze route files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "progressive-caesar-1",
+    "title": "Progressive Caesar I",
+    "type": "caesar",
+    "answerKey": "HIDE THE KEY",
+    "prompt": "Decrypt the progressive Caesar ciphertext where shift increments by character position.",
+    "builtinUtils": [
+      "cipherDecoder",
+      "frequencyAnalyzer"
+    ],
+    "externalLinks": [
+      {
+        "label": "dCode Caesar",
+        "url": "https://www.dcode.fr/caesar-cipher"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the progressive caesar files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "progressive-caesar-2",
+    "title": "Progressive Caesar II",
+    "type": "caesar",
+    "answerKey": "DAWN BREAKS SOON",
+    "prompt": "Continue the progressive Caesar sequence and decode the second encrypted message.",
+    "builtinUtils": [
+      "cipherDecoder",
+      "frequencyAnalyzer"
+    ],
+    "externalLinks": [
+      {
+        "label": "dCode Caesar",
+        "url": "https://www.dcode.fr/caesar-cipher"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the progressive caesar files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "simple-reverse-text",
+    "title": "Simple Reverse Text",
+    "type": "reverse",
+    "answerKey": "CODEFEST25",
+    "prompt": "Reverse and reconstruct all lines to derive the final assembled event code.",
+    "builtinUtils": [
+      "encodingChain",
+      "hexViewer"
+    ],
+    "externalLinks": [
+      {
+        "label": "Text Reverse Tool",
+        "url": "https://www.browserling.com/tools/reverse-text"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the reverse text files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  },
+  {
+    "slug": "time-based-otp",
+    "title": "Time Based OTP",
+    "type": "otp",
+    "answerKey": "PUZZLE",
+    "prompt": "Use dial clues and puzzle spec artifacts to reconstruct the final word.",
+    "builtinUtils": [
+      "hashCalculator",
+      "baseConverter"
+    ],
+    "externalLinks": [
+      {
+        "label": "RFC 6238",
+        "url": "https://datatracker.ietf.org/doc/html/rfc6238"
+      }
+    ],
+    "isInspectPuzzle": false,
+    "isolatedUrl": null,
+    "hints": [
+      {
+        "tier": "tier1",
+        "content": "Start with the most direct clue in the OTP puzzle files.",
+        "penaltySeconds": 60
+      },
+      {
+        "tier": "tier2",
+        "content": "Use provided helper scripts or references to validate intermediate output.",
+        "penaltySeconds": 120
+      },
+      {
+        "tier": "tier3",
+        "content": "Submit in the exact expected format and casing shown in the puzzle notes.",
+        "penaltySeconds": 180
+      }
+    ]
+  }
+]

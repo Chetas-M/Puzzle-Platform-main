@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Team" ADD COLUMN     "isLocked" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "lockedAt" TIMESTAMP(3),
+ADD COLUMN     "warningCount" INTEGER NOT NULL DEFAULT 0;

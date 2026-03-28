@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean  @default(true)
+  isPaused  Boolean  @default(false)
+  pausedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  puzzles   Puzzle[]
+  teamPuzzleSets TeamPuzzleSet[]
+}
+
+model Team {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  isAdmin          Boolean           @default(false)
+  warningCount     Int               @default(0)
+  isLocked         Boolean           @default(false)
+  lockedAt         DateTime?
+  isBanned         Boolean           @default(false)
+  bannedAt         DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  sessions         TeamSession[]
+  attempts         PuzzleAttempt[]
+  solves           PuzzleSolve[]
+  notepads         Notepad[]
+  clipboardEntries ClipboardEntry[]
+  hintRevealAudits HintRevealAudit[]
+  puzzleSets       TeamPuzzleSet[]
+  adminAuditLogs   AdminAuditLog[]
+  antiCheatWarnings AntiCheatWarning[]
+
+  @@unique([code, name])
+}
+
+model AntiCheatWarning {
+  id            String   @id @default(cuid())
+  teamId        String
+  type          String
+  detail        String?
+  warningNumber Int
+  createdAt     DateTime @default(now())
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([teamId, createdAt])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminTeamId String
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json?
+  createdAt   DateTime @default(now())
+  adminTeam   Team     @relation(fields: [adminTeamId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([adminTeamId])
+}
+
+model TeamPuzzleSet {
+  id          String   @id @default(cuid())
+  teamId      String
+  eventId     String
+  puzzleOrder Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, eventId])
+  @@index([eventId])
+}
+
+model TeamSession {
+  id        String    @id @default(cuid())
+  tokenId   String    @unique
+  teamId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+}
+
+model Puzzle {
+  id                 String            @id @default(cuid())
+  eventId            String
+  slug               String            @unique
+  title              String
+  type               String
+  prompt             String            @db.Text
+  answerKey          String
+  orderIndex         Int
+  hintPenaltySeconds Int               @default(60)
+  builtinUtils       Json
+  externalLinks      Json
+  isInspectPuzzle    Boolean           @default(false)
+  isolatedUrl        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  event              Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  hints              PuzzleHint[]
+  attempts           PuzzleAttempt[]
+  solves             PuzzleSolve[]
+  notepads           Notepad[]
+  hintRevealAudits   HintRevealAudit[]
+
+  @@unique([eventId, orderIndex])
+}
+
+model PuzzleHint {
+  id             String            @id @default(cuid())
+  puzzleId       String
+  tier           String
+  content        String            @db.Text
+  penaltySeconds Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  puzzle         Puzzle            @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  reveals        HintRevealAudit[]
+
+  @@unique([puzzleId, tier])
+}
+
+model PuzzleAttempt {
+  id        String   @id @default(cuid())
+  teamId    String
+  puzzleId  String
+  answer    String
+  isCorrect Boolean
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  puzzle    Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, puzzleId])
+}
+
+model PuzzleSolve {
+  id             String   @id @default(cuid())
+  teamId         String
+  puzzleId       String
+  solvedAt       DateTime @default(now())
+  firstAttemptId String?
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  puzzle         Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, puzzleId])
+}
+
+model Notepad {
+  id        String   @id @default(cuid())
+  teamId    String
+  puzzleId  String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  puzzle    Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, puzzleId])
+}
+
+model ClipboardEntry {
+  id        String   @id @default(cuid())
+  teamId    String
+  value     String   @db.Text
+  source    String
+w  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt])
+}
+
+model HintRevealAudit {
+  id             String     @id @default(cuid())
+  teamId         String
+  puzzleId       String
+  puzzleHintId   String
+  tier           String
+  penaltySeconds Int        @default(0)
+  createdAt      DateTime   @default(now())
+  team           Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  puzzle         Puzzle     @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  puzzleHint     PuzzleHint @relation(fields: [puzzleHintId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, puzzleId, tier])
+  @@index([teamId, createdAt])
+}
