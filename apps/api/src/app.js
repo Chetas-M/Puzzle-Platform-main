@@ -326,6 +326,7 @@ async function assignTeamPuzzleSet(prisma, { teamId, eventId, forceRegenerate = 
     select: { id: true }
   });
   const validIds = eventPuzzles.map((row) => row.id);
+  const expectedPoolSize = Math.min(TEAM_PUZZLE_COUNT, validIds.length);
 
   const allSets = await prisma.teamPuzzleSet.findMany({
     where: { eventId },
@@ -362,7 +363,7 @@ async function assignTeamPuzzleSet(prisma, { teamId, eventId, forceRegenerate = 
   }
 
   const preserved = normalizeTeamPool(existing.puzzleOrder, validIds);
-  const isValidCurrentPool = !forceRegenerate && preserved.length === TEAM_PUZZLE_COUNT;
+  const isValidCurrentPool = !forceRegenerate && preserved.length === expectedPoolSize;
 
   if (isValidCurrentPool) {
     return existing;
@@ -443,6 +444,49 @@ async function addPuzzleToTeamPool(prisma, { teamId, eventId, puzzleId }) {
   return prisma.teamPuzzleSet.update({
     where: { id: teamSet.id },
     data: { puzzleOrder: nextOrder }
+  });
+}
+
+async function removePuzzleFromTeamPool(prisma, { teamId, eventId, puzzleId }) {
+  const eventPuzzles = await prisma.puzzle.findMany({
+    where: { eventId },
+    orderBy: { orderIndex: "asc" },
+    select: { id: true }
+  });
+  const validIds = eventPuzzles.map((row) => row.id);
+  if (!validIds.includes(puzzleId)) {
+    throw new Error("Puzzle is not part of the active event.");
+  }
+
+  let teamSet;
+  try {
+    teamSet = await ensureTeamPuzzleSet(prisma, { teamId, eventId });
+  } catch (error) {
+    const canFallback = `${error?.message || ""}`.includes("Unable to assign a unique puzzle pool");
+    if (!canFallback) {
+      throw error;
+    }
+
+    teamSet = await assignTeamPuzzleSet(prisma, {
+      teamId,
+      eventId,
+      forceRegenerate: true,
+      temporary: true
+    });
+  }
+
+  const normalizedOrder = normalizeOrder(teamSet.puzzleOrder, validIds);
+  const nextOrder = normalizedOrder.filter((id) => id !== puzzleId);
+  const targetCount = Math.min(TEAM_PUZZLE_COUNT, Math.max(validIds.length - 1, 0));
+
+  if (nextOrder.length < targetCount) {
+    const fillers = shuffleIds(validIds.filter((id) => id !== puzzleId && !nextOrder.includes(id)));
+    nextOrder.push(...fillers.slice(0, targetCount - nextOrder.length));
+  }
+
+  return prisma.teamPuzzleSet.update({
+    where: { id: teamSet.id },
+    data: { puzzleOrder: nextOrder.slice(0, TEAM_PUZZLE_COUNT) }
   });
 }
 
@@ -964,6 +1008,16 @@ function inferAssetRole(relativePath) {
   return "regular";
 }
 
+function hasStandaloneAssetToken(normalizedPath, token) {
+  const escaped = `${token || ""}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escaped) {
+    return false;
+  }
+
+  const pattern = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`);
+  return pattern.test(normalizedPath);
+}
+
 function isParticipantVisibleAsset(relativePath) {
   const normalized = `${relativePath || ""}`.replace(/\\/g, "/").toLowerCase();
   const role = inferAssetRole(normalized);
@@ -980,7 +1034,18 @@ function isParticipantVisibleAsset(relativePath) {
     return true;
   }
 
-  return !SENSITIVE_ASSET_TOKENS.some((token) => normalized.includes(token));
+  // "no_solution" assets are participant-facing challenge files, not answer files.
+  if (hasStandaloneAssetToken(normalized, "no_solution") || hasStandaloneAssetToken(normalized, "nosolution")) {
+    return true;
+  }
+
+  return !SENSITIVE_ASSET_TOKENS.some((token) => {
+    if (token === "solution") {
+      return hasStandaloneAssetToken(normalized, token);
+    }
+
+    return normalized.includes(token);
+  });
 }
 
 function listDirectories(parentDir) {
@@ -1352,6 +1417,67 @@ function resolvePuzzleAssetFile(slug, relativePath, { viewerTeamId = null, isAdm
   }
 
   return filePath;
+}
+
+function isPathInside(basePath, candidatePath) {
+  const resolvedBase = path.resolve(basePath);
+  const resolvedCandidate = path.resolve(candidatePath);
+  const base = process.platform === "win32" ? resolvedBase.toLowerCase() : resolvedBase;
+  const candidate = process.platform === "win32" ? resolvedCandidate.toLowerCase() : resolvedCandidate;
+
+  if (candidate === base) {
+    return true;
+  }
+
+  const normalizedBase = base.endsWith(path.sep) ? base : `${base}${path.sep}`;
+  return candidate.startsWith(normalizedBase);
+}
+
+function resolvePuzzleAssetFileForAdmin(slug, relativePath) {
+  const puzzleDir = resolveImportedPuzzleDir(slug);
+  if (!puzzleDir || !relativePath) {
+    return null;
+  }
+
+  const normalized = path.normalize(`${relativePath}`.replace(/\\/g, "/"));
+  if (normalized.startsWith("..") || path.isAbsolute(normalized)) {
+    return null;
+  }
+
+  const filePath = path.resolve(puzzleDir, normalized);
+  if (!isPathInside(puzzleDir, filePath)) {
+    return null;
+  }
+
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    return null;
+  }
+
+  const extension = path.extname(filePath).toLowerCase();
+  if (!ASSET_EXTENSIONS.has(extension)) {
+    return null;
+  }
+
+  return filePath;
+}
+
+function removeEmptyParentDirectories(filePath, stopDir) {
+  let current = path.dirname(filePath);
+  while (isPathInside(stopDir, current) && path.resolve(current) !== path.resolve(stopDir)) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current);
+    } catch {
+      break;
+    }
+
+    if (entries.length > 0) {
+      break;
+    }
+
+    fs.rmdirSync(current);
+    current = path.dirname(current);
+  }
 }
 
 function normalizeHintRowsForImport(puzzleId, hintRows) {
@@ -3033,6 +3159,49 @@ export function createApp({ prisma, config }) {
     });
   });
 
+  adminRouter.post("/timer/reset-all", async (req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    const resetAt = new Date();
+    const durationSeconds = Math.max(60, Number(config.EVENT_DURATION_SECONDS || 3600));
+    const nextEndsAt = new Date(resetAt.getTime() + durationSeconds * 1000);
+
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: {
+        startsAt: resetAt,
+        endsAt: nextEndsAt,
+        isPaused: false,
+        pausedAt: null
+      }
+    });
+
+    await appendAdminAudit(prisma, {
+      adminTeamId: req.auth.team.id,
+      action: "reset_timer_all",
+      entityType: "event",
+      entityId: updated.id,
+      details: {
+        durationSeconds,
+        resetAt: resetAt.toISOString(),
+        endsAt: nextEndsAt.toISOString()
+      }
+    });
+
+    return res.json({
+      ok: true,
+      eventId: updated.id,
+      isPaused: false,
+      pausedAt: null,
+      startsAt: updated.startsAt.toISOString(),
+      endsAt: updated.endsAt.toISOString(),
+      durationSeconds
+    });
+  });
+
   adminRouter.post("/teams/ban-all", async (req, res) => {
     const bannedAt = new Date();
     const result = await prisma.team.updateMany({
@@ -3358,6 +3527,76 @@ export function createApp({ prisma, config }) {
       },
       items,
       targetedItems: items.filter((item) => targetedPuzzleIds.has(item.puzzleId))
+    });
+  });
+
+  adminRouter.post("/puzzles/:id/remove-from-team", async (req, res) => {
+    const teamId = `${req.body?.teamId || ""}`.trim();
+    if (!teamId) {
+      return res.status(400).json({ ok: false, message: "teamId is required." });
+    }
+
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    const [team, puzzle] = await Promise.all([
+      prisma.team.findUnique({ where: { id: teamId } }),
+      prisma.puzzle.findUnique({ where: { id: req.params.id } })
+    ]);
+
+    if (!team) {
+      return res.status(404).json({ ok: false, message: "Team not found." });
+    }
+
+    if (team.isAdmin) {
+      return res.status(400).json({ ok: false, message: "Cannot remove puzzles from admin team pools." });
+    }
+
+    if (!puzzle || puzzle.eventId !== event.id) {
+      return res.status(404).json({ ok: false, message: "Puzzle not found in active event." });
+    }
+
+    let teamSet;
+    try {
+      teamSet = await removePuzzleFromTeamPool(prisma, {
+        teamId: team.id,
+        eventId: event.id,
+        puzzleId: puzzle.id
+      });
+    } catch (error) {
+      return res.status(400).json({ ok: false, message: error.message });
+    }
+
+    await appendAdminAudit(prisma, {
+      adminTeamId: req.auth.team.id,
+      action: "remove_team_puzzle",
+      entityType: "team_puzzle_set",
+      entityId: teamSet.id,
+      details: {
+        teamId: team.id,
+        teamCode: team.code,
+        puzzleId: puzzle.id,
+        puzzleSlug: puzzle.slug,
+        puzzleTitle: puzzle.title,
+        resultingCount: Array.isArray(teamSet.puzzleOrder) ? teamSet.puzzleOrder.length : 0
+      }
+    });
+
+    return res.json({
+      ok: true,
+      team: {
+        id: team.id,
+        code: team.code,
+        name: team.name
+      },
+      puzzle: {
+        id: puzzle.id,
+        slug: puzzle.slug,
+        title: puzzle.title
+      },
+      puzzleCount: Array.isArray(teamSet.puzzleOrder) ? teamSet.puzzleOrder.length : 0
     });
   });
 
@@ -3816,6 +4055,151 @@ export function createApp({ prisma, config }) {
     });
 
     return res.status(201).json({ ok: true, assets });
+  });
+
+  adminRouter.post("/puzzles/:id/assets/delete", async (req, res) => {
+    const puzzleResult = await resolvePuzzleForUpload(req.params.id);
+    if (!puzzleResult.ok) {
+      return res.status(puzzleResult.status).json({ ok: false, message: puzzleResult.message });
+    }
+
+    const requestedFile = `${req.body?.file || ""}`.trim();
+    if (!requestedFile) {
+      return res.status(400).json({ ok: false, message: "Asset file path is required." });
+    }
+
+    const filePath = resolvePuzzleAssetFileForAdmin(puzzleResult.puzzle.slug, requestedFile);
+    if (!filePath) {
+      return res.status(404).json({ ok: false, message: "Asset file not found." });
+    }
+
+    const puzzleDir = resolveImportedPuzzleDir(puzzleResult.puzzle.slug);
+    const storedRelativePath = path.relative(path.resolve(puzzleDir), filePath).split(path.sep).join("/");
+    const parsedAsset = parseTeamPrivateAssetPath(storedRelativePath);
+    const displayRelativePath = parsedAsset.displayRelativePath || storedRelativePath;
+
+    fs.unlinkSync(filePath);
+    removeEmptyParentDirectories(filePath, puzzleDir);
+
+    const existingExternalLinks = Array.isArray(puzzleResult.puzzle.externalLinks)
+      ? puzzleResult.puzzle.externalLinks
+      : [];
+    const nextExternalLinks = existingExternalLinks.filter(
+      (link) => extractAssetFilePathFromUrl(link?.url) !== storedRelativePath
+    );
+
+    if (nextExternalLinks.length !== existingExternalLinks.length) {
+      await prisma.puzzle.update({
+        where: { id: puzzleResult.puzzle.id },
+        data: { externalLinks: nextExternalLinks }
+      });
+    }
+
+    await appendAdminAudit(prisma, {
+      adminTeamId: req.auth.team.id,
+      action: "delete_puzzle_asset",
+      entityType: "puzzle",
+      entityId: puzzleResult.puzzle.id,
+      details: {
+        slug: puzzleResult.puzzle.slug,
+        storedRelativePath,
+        displayRelativePath,
+        visibility: parsedAsset.isTeamPrivate ? "team" : "shared",
+        removedExternalLinks: existingExternalLinks.length - nextExternalLinks.length
+      }
+    });
+
+    return res.json({
+      ok: true,
+      asset: {
+        relativePath: displayRelativePath,
+        storedRelativePath,
+        visibility: parsedAsset.isTeamPrivate ? "team" : "shared"
+      },
+      removedExternalLinks: existingExternalLinks.length - nextExternalLinks.length
+    });
+  });
+
+  adminRouter.delete("/puzzles/:id", async (req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    const puzzle = await prisma.puzzle.findUnique({ where: { id: req.params.id } });
+    if (!puzzle || puzzle.eventId !== event.id) {
+      return res.status(404).json({ ok: false, message: "Puzzle not found in active event." });
+    }
+
+    const summary = await prisma.$transaction(async (tx) => {
+      const teamSets = await tx.teamPuzzleSet.findMany({ where: { eventId: event.id } });
+
+      for (const set of teamSets) {
+        const currentOrder = Array.isArray(set.puzzleOrder) ? set.puzzleOrder.map((id) => `${id}`) : [];
+        const nextOrder = currentOrder.filter((id) => id !== puzzle.id);
+        if (nextOrder.length !== currentOrder.length) {
+          await tx.teamPuzzleSet.update({
+            where: { id: set.id },
+            data: { puzzleOrder: nextOrder }
+          });
+        }
+      }
+
+      await tx.puzzle.delete({ where: { id: puzzle.id } });
+
+      const remaining = await tx.puzzle.findMany({
+        where: { eventId: event.id },
+        orderBy: { orderIndex: "asc" },
+        select: { id: true }
+      });
+
+      if (remaining.length > 0) {
+        await tx.puzzle.updateMany({
+          where: { eventId: event.id },
+          data: { orderIndex: { increment: 1000 } }
+        });
+
+        for (let index = 0; index < remaining.length; index += 1) {
+          await tx.puzzle.update({
+            where: { id: remaining[index].id },
+            data: { orderIndex: index + 1 }
+          });
+        }
+      }
+
+      return {
+        remainingCount: remaining.length,
+        updatedTeamPools: teamSets.length
+      };
+    });
+
+    const puzzleDir = resolveImportedPuzzleDir(puzzle.slug);
+    if (puzzleDir && fs.existsSync(puzzleDir) && isPathInside(importedPuzzleRoot, puzzleDir)) {
+      fs.rmSync(puzzleDir, { recursive: true, force: true });
+    }
+
+    await appendAdminAudit(prisma, {
+      adminTeamId: req.auth.team.id,
+      action: "delete_puzzle_global",
+      entityType: "puzzle",
+      entityId: puzzle.id,
+      details: {
+        slug: puzzle.slug,
+        title: puzzle.title,
+        updatedTeamPools: summary.updatedTeamPools,
+        remainingCount: summary.remainingCount
+      }
+    });
+
+    return res.json({
+      ok: true,
+      deletedPuzzle: {
+        id: puzzle.id,
+        slug: puzzle.slug,
+        title: puzzle.title
+      },
+      remainingCount: summary.remainingCount
+    });
   });
 
   adminRouter.patch("/puzzles/:id", async (req, res) => {

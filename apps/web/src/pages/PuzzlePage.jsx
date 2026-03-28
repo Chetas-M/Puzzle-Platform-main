@@ -37,6 +37,15 @@ export default function PuzzlePage() {
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [leaderboardRows, setLeaderboardRows] = useState([]);
+  const [isFullscreen, setIsFullscreen] = useState(() =>
+    typeof document !== "undefined" ? Boolean(document.fullscreenElement) : false
+  );
+  const [answerPopup, setAnswerPopup] = useState({
+    open: false,
+    title: "",
+    message: "",
+    tone: "neutral"
+  });
 
   const [showHints, setShowHints] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -242,6 +251,15 @@ export default function PuzzlePage() {
   }, [refreshPuzzleDetail, selectedPuzzleId]);
 
   useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       refreshCore().catch(() => {});
     }, 10000);
@@ -305,12 +323,25 @@ export default function PuzzlePage() {
             ? ` Total: ${parsed.totalPoints} pts`
             : "";
       setFeedback(`${parsed.message}${pointsNote}`.trim());
+      setAnswerPopup({
+        open: true,
+        title: parsed.result === "correct" ? "Correct Answer" : "Wrong Answer",
+        message: `${parsed.message}${pointsNote}`.trim(),
+        tone: parsed.result === "correct" ? "success" : "error"
+      });
       setShowConfirm(false);
       setAnswer("");
       await refreshCore();
       await refreshPuzzleDetail();
     } catch (requestError) {
-      setFeedback(requestError?.response?.data?.message || "Submit failed");
+      const message = requestError?.response?.data?.message || "Submit failed";
+      setFeedback(message);
+      setAnswerPopup({
+        open: true,
+        title: "Submission Failed",
+        message,
+        tone: "error"
+      });
       setShowConfirm(false);
     }
   };
@@ -466,6 +497,20 @@ export default function PuzzlePage() {
     externalBypassUntilRef.current = Date.now() + 20000;
   };
 
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        setFeedback("Exited fullscreen mode.");
+      } else {
+        await document.documentElement.requestFullscreen();
+        setFeedback("Fullscreen mode enabled.");
+      }
+    } catch {
+      setFeedback("Fullscreen request was blocked by the browser.");
+    }
+  };
+
   const hasConfiguredTools =
     Boolean(puzzleDetail?.toolConfig?.builtinUtils?.length) ||
     Boolean(puzzleDetail?.toolConfig?.externalLinks?.length);
@@ -494,6 +539,13 @@ export default function PuzzlePage() {
           </div>
           <div className="flex items-center gap-2">
             <DarkModeToggle />
+            <button
+              type="button"
+              className="rounded-xl border border-slate-500 px-3 py-2 text-sm"
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            </button>
             <button type="button" className="rounded-xl border border-slate-500 px-3 py-2 text-sm" onClick={logout}>
               Logout
             </button>
@@ -755,6 +807,37 @@ export default function PuzzlePage() {
         onConfirm={submitAnswer}
         onCancel={() => setShowConfirm(false)}
       />
+
+      {answerPopup.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-950 p-5">
+            <h3
+              className={`text-lg font-semibold ${
+                answerPopup.tone === "success" ? "text-emerald-300" : answerPopup.tone === "error" ? "text-rose-300" : ""
+              }`}
+            >
+              {answerPopup.title}
+            </h3>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{answerPopup.message}</p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-accent px-3 py-1 font-semibold text-slate-950"
+                onClick={() =>
+                  setAnswerPopup({
+                    open: false,
+                    title: "",
+                    message: "",
+                    tone: "neutral"
+                  })
+                }
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

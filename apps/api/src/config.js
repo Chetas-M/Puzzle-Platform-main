@@ -10,7 +10,7 @@ const EnvSchema = z.object({
   MAX_WARNINGS: z.coerce.number().int().positive().default(3),
   LEADERBOARD_CACHE_TTL_MS: z.coerce.number().int().min(0).default(3000),
   EVENT_STARTS_AT: z.string().datetime().optional(),
-  EVENT_DURATION_SECONDS: z.coerce.number().int().positive().default(7200),
+  EVENT_DURATION_SECONDS: z.coerce.number().int().positive().default(3600),
   NODE_ENV: z.string().optional()
 });
 

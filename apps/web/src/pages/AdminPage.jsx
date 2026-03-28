@@ -328,6 +328,7 @@ export default function AdminPage() {
   const [puzzles, setPuzzles] = useState([]);
   const [selectedPuzzleId, setSelectedPuzzleId] = useState("");
   const [detail, setDetail] = useState(null);
+  const [detailAssets, setDetailAssets] = useState([]);
 
   const [builtinUtils, setBuiltinUtils] = useState([]);
   const [isInspectPuzzle, setIsInspectPuzzle] = useState(false);
@@ -387,8 +388,28 @@ export default function AdminPage() {
   const [latestUploadedAssetUrl, setLatestUploadedAssetUrl] = useState("");
   const [selectedTeamPool, setSelectedTeamPool] = useState(null);
   const [loadingTeamPool, setLoadingTeamPool] = useState(false);
+  const [teamRemovalTargetId, setTeamRemovalTargetId] = useState("");
+  const [monitorFullscreenState, setMonitorFullscreenState] = useState({
+    team: false,
+    leaderboard: false
+  });
   const createUploadInputRef = useRef(null);
   const uploadInputRef = useRef(null);
+  const teamMonitorPanelRef = useRef(null);
+  const leaderboardPanelRef = useRef(null);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setMonitorFullscreenState({
+        team: document.fullscreenElement === teamMonitorPanelRef.current,
+        leaderboard: document.fullscreenElement === leaderboardPanelRef.current
+      });
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    onFullscreenChange();
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   const loadPuzzles = useCallback(async () => {
     const response = await api.get("/puzzles");
@@ -426,12 +447,19 @@ export default function AdminPage() {
 
   const loadDetail = useCallback(async () => {
     if (!selectedPuzzleId) {
+      setDetailAssets([]);
       return;
     }
 
-    const response = await api.get(`/puzzles/${selectedPuzzleId}`);
-    const puzzle = response.data?.puzzle;
+    const [detailResponse, assetsResponse] = await Promise.all([
+      api.get(`/puzzles/${selectedPuzzleId}`),
+      api.get(`/puzzles/${selectedPuzzleId}/assets`)
+    ]);
+
+    const puzzle = detailResponse.data?.puzzle;
+    const items = Array.isArray(assetsResponse.data?.items) ? assetsResponse.data.items : [];
     setDetail(puzzle);
+    setDetailAssets(items);
 
     if (!puzzle) {
       return;
@@ -461,6 +489,68 @@ export default function AdminPage() {
       )
     );
   }, [selectedPuzzleId]);
+
+  const extractStoredAssetPathFromUrl = (rawUrl) => {
+    try {
+      const parsed = new URL(`${rawUrl || ""}`, window.location.origin);
+      if (!parsed.pathname.startsWith("/puzzle-assets/")) {
+        return null;
+      }
+
+      const file = parsed.searchParams.get("file");
+      return file ? decodeURIComponent(file) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const deleteUploadedAsset = async (asset) => {
+    if (!selectedPuzzleId || !asset?.url) {
+      return;
+    }
+
+    const storedPath = extractStoredAssetPathFromUrl(asset.url);
+    if (!storedPath) {
+      setError("Unable to resolve file path for this asset.");
+      return;
+    }
+
+    const confirmDelete = window.confirm(`Delete file \"${asset.name}\"? This cannot be undone.`);
+    if (!confirmDelete) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await api.post(`/admin/puzzles/${selectedPuzzleId}/assets/delete`, {
+        file: storedPath
+      });
+
+      const existingLinks = parseExternalLinks(externalLinksText);
+      const nextLinks = existingLinks.filter((link) => extractStoredAssetPathFromUrl(link?.url) !== storedPath);
+      if (nextLinks.length !== existingLinks.length) {
+        await api.patch(`/admin/puzzles/${selectedPuzzleId}/tool-config`, {
+          externalLinks: nextLinks
+        });
+        setExternalLinksText(JSON.stringify(nextLinks, null, 2));
+      }
+
+      const removedLinks = Number(response.data?.removedExternalLinks || 0);
+      setFeedback(
+        removedLinks > 0
+          ? `Deleted ${asset.name} and removed ${removedLinks} linked tool reference${removedLinks === 1 ? "" : "s"}.`
+          : `Deleted ${asset.name}.`
+      );
+      await Promise.all([loadDetail(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to delete asset file.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const boot = useCallback(async () => {
     try {
@@ -1063,6 +1153,146 @@ export default function AdminPage() {
       setError(requestError?.response?.data?.message || "Unable to resume timer.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetTimerAll = async () => {
+    const confirmed = window.confirm("Reset the event timer for all teams to the default duration (60 minutes)?");
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.post("/admin/timer/reset-all");
+      setFeedback("Competition timer reset for all teams.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to reset timer.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removePuzzleFromTeam = async () => {
+    if (!selectedPuzzleId) {
+      setError("Select a puzzle first.");
+      return;
+    }
+
+    const resolvedTeamId = `${teamRemovalTargetId || selectedTeamPool?.team?.id || ""}`.trim();
+    if (!resolvedTeamId) {
+      setError("Select a team to remove this puzzle from.");
+      return;
+    }
+
+    const teamLabel =
+      participantTeams.find((row) => row.id === resolvedTeamId)?.name ||
+      selectedTeamPool?.team?.name ||
+      "the selected team";
+    const confirmed = window.confirm(`Remove this puzzle from ${teamLabel}'s pool?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.post(`/admin/puzzles/${selectedPuzzleId}/remove-from-team`, {
+        teamId: resolvedTeamId
+      });
+      setFeedback("Puzzle removed from the selected team pool.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+      if (selectedTeamPool?.team?.id === resolvedTeamId) {
+        await viewTeamPool(selectedTeamPool.team);
+      }
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to remove puzzle from team.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deletePuzzleGlobally = async () => {
+    if (!selectedPuzzleId || !selectedPuzzle) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete shared puzzle \"${selectedPuzzle.title}\" for everyone? This permanently removes puzzle data and files.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.delete(`/admin/puzzles/${selectedPuzzleId}`);
+      setFeedback("Puzzle deleted globally.");
+      setSelectedPuzzleId("");
+      setDetail(null);
+      setDetailAssets([]);
+      await Promise.all([loadPuzzles(), loadMonitoring(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to delete puzzle globally.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTargetedPuzzleForTeam = async ({ teamId, puzzleId, puzzleTitle }) => {
+    if (!teamId || !puzzleId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove \"${puzzleTitle || "this puzzle"}\" from the selected team's pool?`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.post(`/admin/puzzles/${puzzleId}/remove-from-team`, {
+        teamId
+      });
+      setFeedback("Puzzle removed from selected team pool.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+      if (selectedTeamPool?.team?.id === teamId) {
+        await viewTeamPool(selectedTeamPool.team);
+      }
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to remove targeted puzzle.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleMonitorPanelFullscreen = async (panelRef, panelName) => {
+    const panelNode = panelRef?.current;
+    if (!panelNode) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === panelNode) {
+        await document.exitFullscreen();
+        setFeedback(`${panelName} exited fullscreen.`);
+      } else {
+        await panelNode.requestFullscreen();
+        setFeedback(`${panelName} opened in fullscreen.`);
+      }
+      setError("");
+    } catch {
+      setError(`Unable to toggle fullscreen for ${panelName}.`);
     }
   };
 
@@ -1712,6 +1942,43 @@ export default function AdminPage() {
                   >
                     Save Puzzle Details
                   </button>
+
+                  <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-950/20 p-3">
+                    <p className="text-sm font-semibold text-rose-200">Remove/Delete Puzzle</p>
+                    <p className="mt-1 text-xs text-rose-100/80">
+                      Remove this puzzle from one team pool, or delete it globally for all teams.
+                    </p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+                      <select
+                        className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2 text-sm"
+                        value={teamRemovalTargetId || selectedTeamPool?.team?.id || ""}
+                        onChange={(event) => setTeamRemovalTargetId(event.target.value)}
+                      >
+                        <option value="">Select team for team-only removal</option>
+                        {participantTeams.map((row) => (
+                          <option key={`team-remove-${row.id}`} value={row.id}>
+                            {row.name} ({row.code})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={saving || !selectedPuzzleId || !(teamRemovalTargetId || selectedTeamPool?.team?.id)}
+                        onClick={removePuzzleFromTeam}
+                        className="rounded-lg border border-amber-400/70 px-3 py-2 text-xs disabled:opacity-50"
+                      >
+                        Remove From Team
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={saving || !selectedPuzzleId}
+                      onClick={deletePuzzleGlobally}
+                      className="mt-2 rounded-lg border border-rose-400/70 px-3 py-2 text-xs text-rose-200 disabled:opacity-50"
+                    >
+                      Delete Shared Puzzle Globally
+                    </button>
+                  </div>
                 </>
               )}
             </article>
@@ -1992,6 +2259,37 @@ export default function AdminPage() {
                     </button>
                   </div>
                 ) : null}
+
+                <div className="mt-4 rounded-xl border border-slate-700/50 p-3">
+                  <h5 className="mb-2 text-sm font-semibold">Uploaded Puzzle Files</h5>
+                  {detailAssets.length === 0 ? (
+                    <p className="text-xs text-muted">No uploaded assets found for this puzzle.</p>
+                  ) : (
+                    <div className="max-h-56 space-y-2 overflow-auto">
+                      {detailAssets.map((asset) => (
+                        <section
+                          key={`${asset.url}-${asset.relativePath}`}
+                          className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="font-semibold text-slate-100">{asset.name}</p>
+                              <p className="text-muted">{asset.visibility} - {asset.relativePath}</p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => deleteUploadedAsset(asset)}
+                              className="rounded border border-rose-400/70 px-2 py-1 text-[11px] text-rose-200 disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </section>
 
               <button
@@ -2083,16 +2381,30 @@ export default function AdminPage() {
 
         {section === "monitor" ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            <article className="rounded-2xl border border-slate-700/40 bg-card p-4">
+            <article ref={teamMonitorPanelRef} className="rounded-2xl border border-slate-700/40 bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-semibold">Team Monitoring</h2>
-                <button
-                  type="button"
-                  className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
-                  onClick={() => loadMonitoring().catch(() => {})}
-                >
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
+                    onClick={() =>
+                      toggleMonitorPanelFullscreen(
+                        teamMonitorPanelRef,
+                        "Team Monitoring"
+                      )
+                    }
+                  >
+                    {monitorFullscreenState.team ? "Exit Fullscreen" : "Fullscreen"}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
+                    onClick={() => loadMonitoring().catch(() => {})}
+                  >
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               <div className="mb-3 rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 text-sm">
@@ -2120,6 +2432,14 @@ export default function AdminPage() {
                     className="rounded-lg border border-emerald-400/70 px-3 py-1 text-xs disabled:opacity-50"
                   >
                     Resume All Timers
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={resetTimerAll}
+                    className="rounded-lg border border-sky-400/70 px-3 py-1 text-xs disabled:opacity-50"
+                  >
+                    Reset All Timers (60m)
                   </button>
                   <button
                     type="button"
@@ -2264,7 +2584,23 @@ export default function AdminPage() {
                           <section key={item.puzzleId} className="rounded-lg border border-slate-700/50 p-3 text-xs">
                             <div className="flex items-center justify-between gap-2">
                               <p className="font-semibold">#{item.orderIndex} {item.title}</p>
-                              <p className="text-muted uppercase">{item.status}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-muted uppercase">{item.status}</p>
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    removeTargetedPuzzleForTeam({
+                                      teamId: selectedTeamPool.team?.id,
+                                      puzzleId: item.puzzleId,
+                                      puzzleTitle: item.title
+                                    })
+                                  }
+                                  className="rounded border border-rose-400/70 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-50"
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                             <p className="text-muted">{item.slug} - {item.type}</p>
                           </section>
@@ -2279,16 +2615,30 @@ export default function AdminPage() {
                 )}
               </article>
 
-              <article className="rounded-2xl border border-slate-700/40 bg-card p-4">
+              <article ref={leaderboardPanelRef} className="rounded-2xl border border-slate-700/40 bg-card p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="font-semibold">Leaderboard</h2>
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
-                    onClick={() => loadMonitoring().catch(() => {})}
-                  >
-                    Refresh
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
+                      onClick={() =>
+                        toggleMonitorPanelFullscreen(
+                          leaderboardPanelRef,
+                          "Leaderboard"
+                        )
+                      }
+                    >
+                      {monitorFullscreenState.leaderboard ? "Exit Fullscreen" : "Fullscreen"}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
+                      onClick={() => loadMonitoring().catch(() => {})}
+                    >
+                      Refresh
+                    </button>
+                  </div>
                 </div>
                 {leaderboardRows.length === 0 ? (
                   <p className="text-sm text-muted">No leaderboard data yet.</p>
