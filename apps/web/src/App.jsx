@@ -5,6 +5,7 @@ import LoginPage from "./pages/LoginPage";
 import PuzzlePage from "./pages/PuzzlePage";
 import NoChromeChallengePage from "./pages/NoChromeChallengePage";
 import AdminPage from "./pages/AdminPage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 
 function RootRedirect() {
   const { isAuthenticated, isAdmin } = useAuth();
@@ -20,6 +21,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/leaderboard" element={<LeaderboardPage />} />
       <Route
         path="/puzzles"
         element={

@@ -1,4 +1,4 @@
-export default function TimerBar({ remainingSeconds, penaltiesPoints, isPaused = false }) {
+export default function TimerBar({ remainingSeconds, isPaused = false, isTimeUp = false }) {
   const total = Math.max(remainingSeconds, 0);
   const minutes = Math.floor(total / 60)
     .toString()
@@ -13,9 +13,9 @@ export default function TimerBar({ remainingSeconds, penaltiesPoints, isPaused =
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-sm md:px-6">
         <p className="font-mono text-amber-300">
           Event Timer: {minutes}:{seconds}
-          {isPaused ? " (PAUSED)" : ""}
+          {isPaused ? " (PAUSED)" : isTimeUp ? " (TIME'S UP)" : ""}
         </p>
-        <p className="text-xs text-slate-300">Hint Penalty: {penaltiesPoints} pts</p>
+        <p className="text-xs text-slate-300">Server-synced countdown</p>
       </div>
     </div>
   );

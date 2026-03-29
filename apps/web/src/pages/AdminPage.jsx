@@ -32,12 +32,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Analyze the uploaded image files. Extract the hidden pattern or encoded value and submit the final decoded answer.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["hexViewer", "frequencyAnalyzer"],
     hints: {
-      tier1: { content: "Inspect pixel blocks and color channels first.", penaltySeconds: 60 },
-      tier2: { content: "Check for repeating offsets or steganographic patterns.", penaltySeconds: 120 },
-      tier3: { content: "Try extracting metadata and compare with visible artifacts.", penaltySeconds: 180 }
+      tier1: { content: "Inspect pixel blocks and color channels first.", penaltySeconds: 0 },
+      tier2: { content: "Check for repeating offsets or steganographic patterns.", penaltySeconds: 1 },
+      tier3: { content: "Try extracting metadata and compare with visible artifacts.", penaltySeconds: 2 }
     },
     readmeFileName: "README_IMAGE_CIPHER.txt",
     readmeContent:
@@ -52,14 +52,14 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Inspect the challenge HTML/DOM source and hidden comments to extract the final keyword.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["hexViewer", "encodingChain"],
     isInspectPuzzle: true,
     isolatedUrl: "/challenge/SET_SLUG",
     hints: {
-      tier1: { content: "Check HTML comments and hidden elements first.", penaltySeconds: 60 },
-      tier2: { content: "Inspect script tags and data-* attributes for encoded clues.", penaltySeconds: 120 },
-      tier3: { content: "Verify exact casing/spacing in the recovered keyword.", penaltySeconds: 180 }
+      tier1: { content: "Check HTML comments and hidden elements first.", penaltySeconds: 0 },
+      tier2: { content: "Inspect script tags and data-* attributes for encoded clues.", penaltySeconds: 1 },
+      tier3: { content: "Verify exact casing/spacing in the recovered keyword.", penaltySeconds: 2 }
     },
     readmeFileName: "README_HTML_INSPECT.txt",
     readmeContent:
@@ -74,12 +74,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Decode ASCII/character-based puzzle text to recover the final answer.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["baseConverter", "encodingChain", "hexViewer"],
     hints: {
-      tier1: { content: "Map symbols to ASCII values systematically.", penaltySeconds: 60 },
-      tier2: { content: "Check decimal/hex/binary interpretation paths.", penaltySeconds: 120 },
-      tier3: { content: "Reconstruct output in the exact requested format.", penaltySeconds: 180 }
+      tier1: { content: "Map symbols to ASCII values systematically.", penaltySeconds: 0 },
+      tier2: { content: "Check decimal/hex/binary interpretation paths.", penaltySeconds: 1 },
+      tier3: { content: "Reconstruct output in the exact requested format.", penaltySeconds: 2 }
     },
     readmeFileName: "README_ASCII_ART.txt",
     readmeContent:
@@ -94,12 +94,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Analyze the uploaded audio signal, extract the Morse sequence, decode it, and submit the final text answer.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["encodingChain", "frequencyAnalyzer"],
     hints: {
-      tier1: { content: "Visualize waveform timing first.", penaltySeconds: 60 },
-      tier2: { content: "Map short/long beeps to dot/dash sequences.", penaltySeconds: 120 },
-      tier3: { content: "Group Morse by character spacing before decoding.", penaltySeconds: 180 }
+      tier1: { content: "Visualize waveform timing first.", penaltySeconds: 0 },
+      tier2: { content: "Map short/long beeps to dot/dash sequences.", penaltySeconds: 1 },
+      tier3: { content: "Group Morse by character spacing before decoding.", penaltySeconds: 2 }
     },
     readmeFileName: "README_AUDIO_MORSE.txt",
     readmeContent:
@@ -114,12 +114,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Decrypt progressive Caesar ciphertext where shift changes per character position.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["cipherDecoder", "frequencyAnalyzer"],
     hints: {
-      tier1: { content: "Identify the shift progression rule first.", penaltySeconds: 60 },
-      tier2: { content: "Test with short prefixes and verify word boundaries.", penaltySeconds: 120 },
-      tier3: { content: "Normalize punctuation/case according to prompt rules.", penaltySeconds: 180 }
+      tier1: { content: "Identify the shift progression rule first.", penaltySeconds: 0 },
+      tier2: { content: "Test with short prefixes and verify word boundaries.", penaltySeconds: 1 },
+      tier3: { content: "Normalize punctuation/case according to prompt rules.", penaltySeconds: 2 }
     },
     readmeFileName: "README_PROGRESSIVE_CAESAR.txt",
     readmeContent:
@@ -134,12 +134,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Use visual/dial clues and OTP puzzle artifacts to reconstruct the final answer token.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["hashCalculator", "baseConverter"],
     hints: {
-      tier1: { content: "Map each dial/clock indicator to candidate symbols.", penaltySeconds: 60 },
-      tier2: { content: "Validate sequence order and time-step assumptions.", penaltySeconds: 120 },
-      tier3: { content: "Confirm final token formatting before submit.", penaltySeconds: 180 }
+      tier1: { content: "Map each dial/clock indicator to candidate symbols.", penaltySeconds: 0 },
+      tier2: { content: "Validate sequence order and time-step assumptions.", penaltySeconds: 1 },
+      tier3: { content: "Confirm final token formatting before submit.", penaltySeconds: 2 }
     },
     readmeFileName: "README_TIME_BASED_OTP.txt",
     readmeContent:
@@ -154,12 +154,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Use the uploaded reference text and coordinate list to decode the hidden message, then submit the final answer.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["baseConverter", "hexViewer"],
     hints: {
-      tier1: { content: "Confirm coordinate format (page/line/word or line/word/char).", penaltySeconds: 60 },
-      tier2: { content: "Extract values in order without skipping separators.", penaltySeconds: 120 },
-      tier3: { content: "Re-check indexing (1-based vs 0-based) if decode looks shifted.", penaltySeconds: 180 }
+      tier1: { content: "Confirm coordinate format (page/line/word or line/word/char).", penaltySeconds: 0 },
+      tier2: { content: "Extract values in order without skipping separators.", penaltySeconds: 1 },
+      tier3: { content: "Re-check indexing (1-based vs 0-based) if decode looks shifted.", penaltySeconds: 2 }
     },
     readmeFileName: "README_BOOK_CIPHER.txt",
     readmeContent:
@@ -174,12 +174,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Reverse and reconstruct each clue segment to reveal the final answer phrase.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["encodingChain", "hexViewer"],
     hints: {
-      tier1: { content: "Reverse each line independently before combining.", penaltySeconds: 60 },
-      tier2: { content: "Watch for delimiters/spaces that shift after reverse.", penaltySeconds: 120 },
-      tier3: { content: "Ensure final concatenation matches prompt format.", penaltySeconds: 180 }
+      tier1: { content: "Reverse each line independently before combining.", penaltySeconds: 0 },
+      tier2: { content: "Watch for delimiters/spaces that shift after reverse.", penaltySeconds: 1 },
+      tier3: { content: "Ensure final concatenation matches prompt format.", penaltySeconds: 2 }
     },
     readmeFileName: "README_REVERSE_TEXT.txt",
     readmeContent:
@@ -194,12 +194,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Review the uploaded buggy script, identify and fix the issues, then submit the required output or corrected flag.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["codeWorkspace", "pythonInterpreter", "codeVerifier"],
     hints: {
-      tier1: { content: "Run through imports, syntax, and variable naming first.", penaltySeconds: 60 },
-      tier2: { content: "Trace logic branches and off-by-one boundaries.", penaltySeconds: 120 },
-      tier3: { content: "Validate final output format exactly as requested.", penaltySeconds: 180 }
+      tier1: { content: "Run through imports, syntax, and variable naming first.", penaltySeconds: 0 },
+      tier2: { content: "Trace logic branches and off-by-one boundaries.", penaltySeconds: 1 },
+      tier3: { content: "Validate final output format exactly as requested.", penaltySeconds: 2 }
     },
     readmeFileName: "README_FIX_ERRORS.txt",
     readmeContent:
@@ -214,12 +214,12 @@ const PUZZLE_BASE_CONFIGS = {
     prompt:
       "Follow print-statement/step trace clues to find the valid maze route output.",
     answerKeyPlaceholder: "SET_ME",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: ["encodingChain", "baseConverter"],
     hints: {
-      tier1: { content: "Trace route state line-by-line first.", penaltySeconds: 60 },
-      tier2: { content: "Mark invalid branches and backtracking points.", penaltySeconds: 120 },
-      tier3: { content: "Validate full move sequence against constraints.", penaltySeconds: 180 }
+      tier1: { content: "Trace route state line-by-line first.", penaltySeconds: 0 },
+      tier2: { content: "Mark invalid branches and backtracking points.", penaltySeconds: 1 },
+      tier3: { content: "Validate full move sequence against constraints.", penaltySeconds: 2 }
     },
     readmeFileName: "README_PRINT_STATEMENT_MAZE.txt",
     readmeContent:
@@ -234,15 +234,15 @@ function createDefaultPuzzleDraft() {
     type: "",
     prompt: "",
     answerKey: "",
-    hintPenaltySeconds: 60,
+    hintPenaltySeconds: 0,
     builtinUtils: [],
     externalLinksText: "[]",
     isInspectPuzzle: false,
     isolatedUrl: "",
     hints: {
-      tier1: { content: "", penaltySeconds: 60 },
-      tier2: { content: "", penaltySeconds: 120 },
-      tier3: { content: "", penaltySeconds: 180 }
+      tier1: { content: "", penaltySeconds: 0 },
+      tier2: { content: "", penaltySeconds: 1 },
+      tier3: { content: "", penaltySeconds: 2 }
     }
   };
 }
@@ -334,14 +334,22 @@ export default function AdminPage() {
   const [isInspectPuzzle, setIsInspectPuzzle] = useState(false);
   const [isolatedUrl, setIsolatedUrl] = useState("");
   const [externalLinksText, setExternalLinksText] = useState("[]");
-  const [hintPenaltySeconds, setHintPenaltySeconds] = useState(60);
+  const [hintPenaltySeconds, setHintPenaltySeconds] = useState(0);
   const [hintDrafts, setHintDrafts] = useState({});
 
   const [teamMonitor, setTeamMonitor] = useState([]);
   const [leaderboardRows, setLeaderboardRows] = useState([]);
   const [sessionMonitor, setSessionMonitor] = useState([]);
   const [warningItems, setWarningItems] = useState([]);
-  const [competitionState, setCompetitionState] = useState({ isPaused: false, pausedAt: null });
+  const [competitionState, setCompetitionState] = useState({
+    isPaused: false,
+    pausedAt: null,
+    isStarted: false,
+    startedAt: null,
+    isTimeUp: false,
+    puzzleCount: 20,
+    wrongAnswerPenaltyMinutes: 0
+  });
   const [auditItems, setAuditItems] = useState([]);
   const [importSummary, setImportSummary] = useState(null);
   const [createDraft, setCreateDraft] = useState(() => createDefaultPuzzleDraft());
@@ -436,7 +444,12 @@ export default function AdminPage() {
     setLeaderboardRows(Array.isArray(leaderboardRes.data?.leaderboard) ? leaderboardRes.data.leaderboard : []);
     setCompetitionState({
       isPaused: Boolean(eventStateRes.data?.competition?.isPaused),
-      pausedAt: eventStateRes.data?.competition?.pausedAt || null
+      pausedAt: eventStateRes.data?.competition?.pausedAt || null,
+      isStarted: Boolean(eventStateRes.data?.event?.isStarted),
+      startedAt: eventStateRes.data?.event?.startedAt || null,
+      isTimeUp: Boolean(eventStateRes.data?.competition?.isTimeUp),
+      puzzleCount: Number(eventStateRes.data?.event?.puzzleCount || 20),
+      wrongAnswerPenaltyMinutes: Number(eventStateRes.data?.event?.wrongAnswerPenaltyMinutes || 0)
     });
   }, []);
 
@@ -476,7 +489,7 @@ export default function AdminPage() {
       prompt: puzzle.prompt || "",
       answerKey: ""
     });
-    setHintPenaltySeconds(Number(puzzle.hints?.[0]?.penaltySeconds || 60));
+    setHintPenaltySeconds(Number(puzzle.hints?.[0]?.penaltySeconds || 0));
     setHintDrafts(
       Object.fromEntries(
         (puzzle.hints || []).map((hint) => [
@@ -505,11 +518,11 @@ export default function AdminPage() {
   };
 
   const deleteUploadedAsset = async (asset) => {
-    if (!selectedPuzzleId || !asset?.url) {
+    if (!selectedPuzzleId || !asset) {
       return;
     }
 
-    const storedPath = extractStoredAssetPathFromUrl(asset.url);
+    const storedPath = `${asset.storedRelativePath || ""}`.trim() || extractStoredAssetPathFromUrl(asset.url);
     if (!storedPath) {
       setError("Unable to resolve file path for this asset.");
       return;
@@ -869,7 +882,7 @@ export default function AdminPage() {
         ? hintPenaltyDraft
         : isTemplateMode
           ? selectedCreateTemplate.hintPenaltySeconds
-          : 60;
+           : 0;
 
       const buildHintPayload = (tier) => {
         const draftHint = createDraft.hints[tier] || { content: "", penaltySeconds: 0 };
@@ -882,7 +895,6 @@ export default function AdminPage() {
       };
 
       const payload = {
-        targetTeamId: createTargetTeam?.id || null,
         slug: resolvedSlug,
         title: resolvedTitle,
         type: resolvedType,
@@ -897,9 +909,7 @@ export default function AdminPage() {
       };
 
       const response = await api.post("/admin/puzzles", payload);
-      let feedbackMessage = response.data?.targetTeam?.name
-        ? `Puzzle created and added to ${response.data.targetTeam.name}'s pool.`
-        : "Puzzle created successfully.";
+      let feedbackMessage = "Puzzle created successfully.";
 
       const createdPuzzleId = response.data?.puzzle?.id;
       const filesToUpload = [...createUploadDraft.files];
@@ -1093,8 +1103,7 @@ export default function AdminPage() {
     setFeedback("");
     try {
       await api.patch(`/admin/hints/${hintId}`, {
-        content: draft.content,
-        penaltySeconds: Number(draft.penaltySeconds)
+        content: draft.content
       });
       setFeedback("Hint updated.");
       await loadDetail();
@@ -1151,6 +1160,67 @@ export default function AdminPage() {
       await Promise.all([loadMonitoring(), loadAuditLogs()]);
     } catch (requestError) {
       setError(requestError?.response?.data?.message || "Unable to resume timer.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateEventSettings = async () => {
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.patch("/admin/event-settings", {
+        puzzleCount: Number(competitionState.puzzleCount || 20)
+      });
+      setFeedback("Event settings updated.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to update event settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEvent = async () => {
+    const confirmed = window.confirm("Start the event now and freeze puzzle assignments for all pre-registered teams?");
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.post("/admin/event-start");
+      setFeedback("Event started and team puzzle orders were frozen.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to start the event.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const endEvent = async () => {
+    if (saving || !competitionState.isStarted || competitionState.isTimeUp) {
+      return;
+    }
+
+    const confirmed = window.confirm("End the event now? This will stop the timer for everyone immediately.");
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      await api.post("/admin/event-end");
+      setFeedback("Event ended for all teams.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to end the event.");
     } finally {
       setSaving(false);
     }
@@ -1403,11 +1473,9 @@ export default function AdminPage() {
     try {
       const response = await api.get(`/admin/teams/${row.id}/puzzle-pool`);
       setSelectedTeamPool(response.data);
-      const targetedCount = Array.isArray(response.data?.targetedItems)
-        ? response.data.targetedItems.length
-        : 0;
+      const itemCount = Array.isArray(response.data?.items) ? response.data.items.length : 0;
       setFeedback(
-        `Loaded ${targetedCount} team-added puzzle${targetedCount === 1 ? "" : "s"} for ${row.name}.`
+        `Loaded ${itemCount} frozen puzzle${itemCount === 1 ? "" : "s"} for ${row.name}.`
       );
     } catch (requestError) {
       if (requestError?.response?.status === 401) {
@@ -1512,22 +1580,9 @@ export default function AdminPage() {
               ) : null}
             </label>
 
-            {createTargetTeam ? (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/20 px-3 py-2 text-sm">
-                <p>
-                  Target Team: <span className="font-semibold">{createTargetTeam.name}</span> ({createTargetTeam.code})
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setCreateTargetTeam(null)}
-                  className="rounded-lg border border-cyan-300/60 px-2 py-1 text-xs"
-                >
-                  Clear Target
-                </button>
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-muted">No target team selected. Puzzle will be global until assigned to pools.</p>
-            )}
+            <p className="mt-3 text-xs text-muted">
+              Newly created puzzles are added to the shared event pool. Team-specific puzzle assignment is disabled once orders are frozen.
+            </p>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="text-sm">
@@ -1579,18 +1634,12 @@ export default function AdminPage() {
             </label>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <label className="text-sm">
-                <span className="mb-1 block">Default Hint Penalty (sec)</span>
-                <input
-                  className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2"
-                  type="number"
-                  min="0"
-                  value={createDraft.hintPenaltySeconds}
-                  onChange={(event) =>
-                    setCreateDraft((prev) => ({ ...prev, hintPenaltySeconds: event.target.value }))
-                  }
-                />
-              </label>
+              <div className="text-sm">
+                <span className="mb-1 block">Hint Costs</span>
+                <p className="rounded-lg border border-slate-700/50 bg-slate-950/40 px-3 py-2 text-xs text-muted">
+                  Tier 1 = 0 pts, Tier 2 = 1 pt, Tier 3 = 2 pts.
+                </p>
+              </div>
               <label className="text-sm">
                 <span className="mb-1 block">Inspect Puzzle</span>
                 <input
@@ -1944,32 +1993,10 @@ export default function AdminPage() {
                   </button>
 
                   <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-950/20 p-3">
-                    <p className="text-sm font-semibold text-rose-200">Remove/Delete Puzzle</p>
+                    <p className="text-sm font-semibold text-rose-200">Delete Puzzle</p>
                     <p className="mt-1 text-xs text-rose-100/80">
-                      Remove this puzzle from one team pool, or delete it globally for all teams.
+                      Frozen event orders do not support removing a puzzle from only one team. Global deletion remains available before event start.
                     </p>
-                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-                      <select
-                        className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2 text-sm"
-                        value={teamRemovalTargetId || selectedTeamPool?.team?.id || ""}
-                        onChange={(event) => setTeamRemovalTargetId(event.target.value)}
-                      >
-                        <option value="">Select team for team-only removal</option>
-                        {participantTeams.map((row) => (
-                          <option key={`team-remove-${row.id}`} value={row.id}>
-                            {row.name} ({row.code})
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={saving || !selectedPuzzleId || !(teamRemovalTargetId || selectedTeamPool?.team?.id)}
-                        onClick={removePuzzleFromTeam}
-                        className="rounded-lg border border-amber-400/70 px-3 py-2 text-xs disabled:opacity-50"
-                      >
-                        Remove From Team
-                      </button>
-                    </div>
                     <button
                       type="button"
                       disabled={saving || !selectedPuzzleId}
@@ -2195,6 +2222,11 @@ export default function AdminPage() {
                   <span className="text-muted">
                     Use the buttons below to upload this queue as either participant reference files or hidden verifier files.
                   </span>
+                  {`${detail?.type || ""}`.toLowerCase() === "fix_errors" ? (
+                    <span className="text-amber-200">
+                      For Fix Errors puzzles, upload the buggy participant file as a Reference File and the organizer solution as a Hidden Verifier File.
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -2268,13 +2300,15 @@ export default function AdminPage() {
                     <div className="max-h-56 space-y-2 overflow-auto">
                       {detailAssets.map((asset) => (
                         <section
-                          key={`${asset.url}-${asset.relativePath}`}
+                          key={`${asset.storedRelativePath || asset.url || asset.relativePath}-${asset.role || "regular"}`}
                           className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-2 text-xs"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <p className="font-semibold text-slate-100">{asset.name}</p>
-                              <p className="text-muted">{asset.visibility} - {asset.relativePath}</p>
+                              <p className="text-muted">
+                                {asset.visibility} - {asset.role || "regular"} - {asset.relativePath}
+                              </p>
                             </div>
                             <button
                               type="button"
@@ -2303,24 +2337,10 @@ export default function AdminPage() {
             </article>
 
             <article className="rounded-2xl border border-slate-700/40 bg-card p-4">
-              <h3 className="mb-3 font-semibold">Default Hint Penalty</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  className="w-40 rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2"
-                  type="number"
-                  min="0"
-                  value={hintPenaltySeconds}
-                  onChange={(event) => setHintPenaltySeconds(event.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={saving || !selectedPuzzleId}
-                  onClick={saveDefaultHintPenalty}
-                  className="rounded-xl border border-slate-500 px-4 py-2 text-sm"
-                >
-                  Save Penalty
-                </button>
-              </div>
+              <h3 className="mb-3 font-semibold">Hint Scoring</h3>
+              <p className="text-sm text-muted">
+                Default hint penalties are disabled. Hint costs are fixed by tier: tier-1 = 0 pts, tier-2 = 1 pt, tier-3 = 2 pts.
+              </p>
             </article>
 
             <article className="rounded-2xl border border-slate-700/40 bg-card p-4">
@@ -2345,21 +2365,9 @@ export default function AdminPage() {
                         }
                       />
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          className="w-32 rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2"
-                          type="number"
-                          min="0"
-                          value={draft.penaltySeconds}
-                          onChange={(event) =>
-                            setHintDrafts((prev) => ({
-                              ...prev,
-                              [hint.id]: {
-                                ...draft,
-                                penaltySeconds: event.target.value
-                              }
-                            }))
-                          }
-                        />
+                        <p className="rounded-lg border border-slate-700/50 bg-slate-950/40 px-3 py-2 text-xs text-muted">
+                          Fixed cost: {hint.tier === "tier1" ? "0 pts" : hint.tier === "tier2" ? "1 pt" : "2 pts"}
+                        </p>
                         <button
                           type="button"
                           disabled={saving}
@@ -2409,17 +2417,52 @@ export default function AdminPage() {
 
               <div className="mb-3 rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 text-sm">
                 <p className="font-semibold">
-                  Competition Timer: {competitionState.isPaused ? "Paused" : "Running"}
+                  Competition Timer: {competitionState.isTimeUp ? "Ended" : competitionState.isPaused ? "Paused" : competitionState.isStarted ? "Running" : "Not Started"}
                 </p>
                 <p className="text-xs text-muted">
-                  {competitionState.pausedAt
-                    ? `Paused at ${new Date(competitionState.pausedAt).toLocaleString()}`
-                    : "No active pause"}
+                  {competitionState.isStarted && competitionState.startedAt
+                    ? `Started at ${new Date(competitionState.startedAt).toLocaleString()}`
+                    : "Event has not started yet"}
                 </p>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="text-xs">
+                    <span className="mb-1 block text-muted">Puzzle Count</span>
+                    <input
+                      type="number"
+                      min="20"
+                      max="26"
+                      value={competitionState.puzzleCount}
+                      disabled={saving || competitionState.isStarted}
+                      onChange={(event) =>
+                        setCompetitionState((previous) => ({
+                          ...previous,
+                          puzzleCount: event.target.value
+                        }))
+                      }
+                      className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2"
+                    />
+                  </label>
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={saving || competitionState.isPaused}
+                    disabled={saving || competitionState.isStarted}
+                    onClick={updateEventSettings}
+                    className="rounded-lg border border-cyan-400/70 px-3 py-1 text-xs disabled:opacity-50"
+                  >
+                    Save Event Settings
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving || competitionState.isStarted}
+                    onClick={startEvent}
+                    className="rounded-lg border border-emerald-400/70 px-3 py-1 text-xs disabled:opacity-50"
+                  >
+                    Start Event
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving || !competitionState.isStarted || competitionState.isPaused}
                     onClick={pauseTimerAll}
                     className="rounded-lg border border-amber-400/70 px-3 py-1 text-xs disabled:opacity-50"
                   >
@@ -2427,7 +2470,7 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={saving || !competitionState.isPaused}
+                    disabled={saving || !competitionState.isStarted || !competitionState.isPaused}
                     onClick={resumeTimerAll}
                     className="rounded-lg border border-emerald-400/70 px-3 py-1 text-xs disabled:opacity-50"
                   >
@@ -2435,7 +2478,15 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={saving || !competitionState.isStarted || competitionState.isTimeUp}
+                    onClick={endEvent}
+                    className="rounded-lg border border-rose-400/70 px-3 py-1 text-xs text-rose-200 disabled:opacity-50"
+                  >
+                    End Event
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving || competitionState.isStarted}
                     onClick={resetTimerAll}
                     className="rounded-lg border border-sky-400/70 px-3 py-1 text-xs disabled:opacity-50"
                   >
@@ -2467,9 +2518,9 @@ export default function AdminPage() {
                       <th className="pb-2">Team</th>
                       <th className="pb-2">Active Sessions</th>
                       <th className="pb-2">Solved</th>
-                      <th className="pb-2">Points</th>
+                      <th className="pb-2">Hint Penalty</th>
                       <th className="pb-2">Attempts</th>
-                      <th className="pb-2">Penalties</th>
+                      <th className="pb-2">Total Time</th>
                       <th className="pb-2">Warnings</th>
                       <th className="pb-2">Status</th>
                       <th className="pb-2">Action</th>
@@ -2484,9 +2535,13 @@ export default function AdminPage() {
                         </td>
                         <td className="py-2">{row.activeSessionCount}</td>
                         <td className="py-2">{row.solvedCount}</td>
-                        <td className="py-2">{row.totalPoints ?? 0}</td>
+                        <td className="py-2">{row.hintPenaltyPoints ?? 0} pts</td>
                         <td className="py-2">{row.attemptCount}</td>
-                        <td className="py-2">{row.penaltiesPoints ?? 0} pts</td>
+                        <td className="py-2">
+                          {row.totalElapsedSeconds !== null && row.totalElapsedSeconds !== undefined
+                            ? `${Math.floor(row.totalElapsedSeconds / 60)}m ${row.totalElapsedSeconds % 60}s`
+                            : "--"}
+                        </td>
                         <td className="py-2">{row.warningCount}</td>
                         <td className="py-2">
                           {row.isAdmin ? (
@@ -2522,27 +2577,11 @@ export default function AdminPage() {
                               </button>
                               <button
                                 type="button"
-                                disabled={saving}
-                                onClick={() => openTeamPuzzleCreator(row)}
-                                className="rounded border border-emerald-400/70 px-2 py-1 text-[10px] disabled:opacity-50"
-                              >
-                                Create For Team
-                              </button>
-                              <button
-                                type="button"
                                 disabled={saving || loadingTeamPool}
                                 onClick={() => viewTeamPool(row)}
                                 className="rounded border border-sky-400/70 px-2 py-1 text-[10px] disabled:opacity-50"
                               >
-                                Team Pool
-                              </button>
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => regenerateTeamPool(row, true)}
-                                className="rounded border border-cyan-400/70 px-2 py-1 text-[10px] disabled:opacity-50"
-                              >
-                                Temp Pool
+                                Puzzle Order
                               </button>
                             </div>
                           )}
@@ -2571,35 +2610,21 @@ export default function AdminPage() {
 
                 {!selectedTeamPool ? (
                   <p className="text-sm text-muted">
-                    Click Team Pool for any team to view only puzzles explicitly added to that team.
+                    Click Puzzle Order for any team to inspect its frozen puzzle sequence.
                   </p>
                 ) : (
                   <>
                     <p className="mb-2 text-sm">
                       <span className="font-semibold">{selectedTeamPool.team?.name}</span> ({selectedTeamPool.team?.code})
                     </p>
-                    {Array.isArray(selectedTeamPool.targetedItems) && selectedTeamPool.targetedItems.length > 0 ? (
+                    {Array.isArray(selectedTeamPool.items) && selectedTeamPool.items.length > 0 ? (
                       <div className="max-h-[260px] space-y-2 overflow-auto">
-                        {selectedTeamPool.targetedItems.map((item) => (
+                        {selectedTeamPool.items.map((item) => (
                           <section key={item.puzzleId} className="rounded-lg border border-slate-700/50 p-3 text-xs">
                             <div className="flex items-center justify-between gap-2">
                               <p className="font-semibold">#{item.orderIndex} {item.title}</p>
                               <div className="flex items-center gap-2">
                                 <p className="text-muted uppercase">{item.status}</p>
-                                <button
-                                  type="button"
-                                  disabled={saving}
-                                  onClick={() =>
-                                    removeTargetedPuzzleForTeam({
-                                      teamId: selectedTeamPool.team?.id,
-                                      puzzleId: item.puzzleId,
-                                      puzzleTitle: item.title
-                                    })
-                                  }
-                                  className="rounded border border-rose-400/70 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-50"
-                                >
-                                  Remove
-                                </button>
                               </div>
                             </div>
                             <p className="text-muted">{item.slug} - {item.type}</p>
@@ -2608,7 +2633,7 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <p className="text-sm text-muted">
-                        No puzzles were explicitly added to this team yet.
+                        No frozen puzzle order is available for this team yet.
                       </p>
                     )}
                   </>
@@ -2648,10 +2673,10 @@ export default function AdminPage() {
                       <section key={`leader-${entry.team.id}`} className="rounded-lg border border-slate-700/50 p-3 text-xs">
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-semibold">#{entry.rank} {entry.team.name}</p>
-                          <p className="text-emerald-300">{entry.totalPoints} pts</p>
+                          <p className="text-emerald-300">{entry.solvedCount} solved</p>
                         </div>
                         <p className="text-muted">
-                          {entry.team.code} | Solved: {entry.solvedCount} | Hint penalties: {entry.penaltiesPoints} pts
+                          {entry.team.code} | Hint penalty: {entry.hintPenaltyPoints ?? 0} pts | Total time: {entry.totalElapsedSeconds !== null && entry.totalElapsedSeconds !== undefined ? `${Math.floor(entry.totalElapsedSeconds / 60)}m ${entry.totalElapsedSeconds % 60}s` : "--"}
                         </p>
                       </section>
                     ))}
@@ -2789,3 +2814,5 @@ export default function AdminPage() {
     </main>
   );
 }
+
+
