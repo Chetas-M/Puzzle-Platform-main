@@ -16,6 +16,6 @@ test("deriveRemainingSeconds never returns negative", () => {
   assert.equal(remaining, 0);
 });
 
-test("normalizeAnswer trims and lowercases", () => {
-  assert.equal(normalizeAnswer("  HeLLo  "), "hello");
+test("normalizeAnswer trims and uppercases", () => {
+  assert.equal(normalizeAnswer("  HeLLo  "), "HELLO");
 });

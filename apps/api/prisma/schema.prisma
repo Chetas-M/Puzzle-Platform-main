@@ -8,16 +8,20 @@ datasource db {
 }
 
 model Event {
-  id        String   @id @default(cuid())
-  name      String
-  startsAt  DateTime
-  endsAt    DateTime
-  isActive  Boolean  @default(true)
-  isPaused  Boolean  @default(false)
-  pausedAt  DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  puzzles   Puzzle[]
+  id                       String          @id @default(cuid())
+  name                     String
+  startsAt                 DateTime
+  endsAt                   DateTime
+  isActive                 Boolean         @default(true)
+  isPaused                 Boolean         @default(false)
+  pausedAt                 DateTime?
+  startedAt                DateTime?
+  puzzleCount              Int             @default(20)
+  wrongAnswerPenaltyMinutes Int            @default(0)
+  frozenPuzzleIds          Json?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  puzzles                  Puzzle[]
   teamPuzzleSets TeamPuzzleSet[]
 }
 
@@ -74,14 +78,15 @@ model AdminAuditLog {
 }
 
 model TeamPuzzleSet {
-  id          String   @id @default(cuid())
-  teamId      String
-  eventId     String
-  puzzleOrder Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  teamId             String
+  eventId            String
+  puzzleOrder        Json
+  currentPuzzleIndex Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, eventId])
   @@index([eventId])
@@ -109,7 +114,7 @@ model Puzzle {
   prompt             String            @db.Text
   answerKey          String
   orderIndex         Int
-  hintPenaltySeconds Int               @default(60)
+  hintPenaltySeconds Int               @default(0)
   builtinUtils       Json
   externalLinks      Json
   isInspectPuzzle    Boolean           @default(false)
@@ -183,7 +188,7 @@ model ClipboardEntry {
   teamId    String
   value     String   @db.Text
   source    String
-w  createdAt DateTime @default(now())
+  createdAt DateTime @default(now())
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([teamId, createdAt])

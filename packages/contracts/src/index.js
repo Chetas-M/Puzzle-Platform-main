@@ -61,11 +61,16 @@ export const EventStateResponseSchema = z.object({
     id: z.string(),
     name: z.string(),
     startsAt: z.string(),
-    endsAt: z.string()
+    endsAt: z.string(),
+    startedAt: z.string().nullable(),
+    isStarted: z.boolean(),
+    puzzleCount: z.number().int().positive(),
+    frozenPuzzleCount: z.number().int().nonnegative()
   }),
   competition: z.object({
     isPaused: z.boolean(),
-    pausedAt: z.string().nullable()
+    pausedAt: z.string().nullable(),
+    isTimeUp: z.boolean()
   }),
   penaltiesPoints: z.number().int().nonnegative(),
   remainingSeconds: z.number().int().nonnegative(),
@@ -123,13 +128,23 @@ export const PuzzleDetailSchema = z.object({
   progress: z.object({
     status: z.enum(["unsolved", "attempted", "solved"]),
     attempts: z.number().int().nonnegative(),
-    solvedAt: z.string().nullable()
+    solvedAt: z.string().nullable(),
+    canAdvance: z.boolean(),
+    canSkip: z.boolean(),
+    isCurrent: z.boolean()
   })
 });
 
 export const PuzzleListResponseSchema = z.object({
   ok: z.literal(true),
-  puzzles: z.array(PuzzleListItemSchema)
+  puzzles: z.array(PuzzleListItemSchema),
+  currentPuzzleId: z.string().nullable(),
+  currentPuzzleIndex: z.number().int().nonnegative(),
+  totalPuzzles: z.number().int().nonnegative(),
+  canAdvance: z.boolean(),
+   canSkip: z.boolean(),
+  isStarted: z.boolean(),
+  isFinished: z.boolean()
 });
 
 export const PuzzleDetailResponseSchema = z.object({
@@ -181,17 +196,19 @@ export const PuzzleSubmitResponseSchema = z.object({
   result: z.enum(["correct", "incorrect"]),
   message: z.string(),
   status: z.enum(["unsolved", "attempted", "solved"]),
-  pointsAwarded: z.number().int().nonnegative().optional().default(0),
-  totalPoints: z.number().int().nonnegative().optional().default(0)
+  answer: z.string(),
+  canAdvance: z.boolean(),
+  currentPuzzleId: z.string().nullable(),
+  currentPuzzleIndex: z.number().int().nonnegative()
 });
 
 export const LeaderboardEntrySchema = z.object({
   rank: z.number().int().positive(),
   team: TeamSummarySchema,
-  totalPoints: z.number().int().nonnegative(),
   solvedCount: z.number().int().nonnegative(),
-  penaltiesPoints: z.number().int().nonnegative(),
-  lastSolvedAt: z.string().nullable()
+  hintPenaltyPoints: z.number().int().nonnegative(),
+  totalElapsedSeconds: z.number().int().nonnegative().nullable(),
+  lastCorrectAt: z.string().nullable()
 });
 
 export const LeaderboardResponseSchema = z.object({
@@ -208,7 +225,18 @@ export const ProgressItemSchema = z.object({
 
 export const ProgressResponseSchema = z.object({
   ok: z.literal(true),
-  items: z.array(ProgressItemSchema).max(10)
+  items: z.array(ProgressItemSchema),
+  currentPuzzleId: z.string().nullable(),
+  currentPuzzleIndex: z.number().int().nonnegative(),
+  totalPuzzles: z.number().int().nonnegative(),
+  canAdvance: z.boolean(),
+  canSkip: z.boolean(),
+  isStarted: z.boolean(),
+  isFinished: z.boolean()
+});
+
+export const AdminEventSettingsUpdateSchema = z.object({
+  puzzleCount: z.number().int().min(20).max(26)
 });
 
 export const AdminPuzzleToolConfigUpdateSchema = z.object({

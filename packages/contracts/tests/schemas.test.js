@@ -16,15 +16,27 @@ test("team session request schema validates expected payload", () => {
   assert.equal(parsed.teamName, "Team Alpha");
 });
 
-test("progress response supports up to 10 puzzle tiles", () => {
+test("progress response supports expanded navigation metadata", () => {
   const rows = Array.from({ length: 1 }).map((_, idx) => ({
     puzzleId: `p-${idx}`,
     title: `Puzzle ${idx}`,
     status: "unsolved"
   }));
 
-  const parsed = ProgressResponseSchema.parse({ ok: true, items: rows });
+  const parsed = ProgressResponseSchema.parse({
+    ok: true,
+    items: rows,
+    currentPuzzleId: "p-0",
+    currentPuzzleIndex: 0,
+    totalPuzzles: 24,
+    canAdvance: false,
+    canSkip: true,
+    isStarted: true,
+    isFinished: false
+  });
   assert.equal(parsed.items.length, 1);
+  assert.equal(parsed.totalPuzzles, 24);
+  assert.equal(parsed.canSkip, true);
 });
 
 test("tool config defaults are applied", () => {

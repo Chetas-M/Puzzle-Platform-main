@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  AdminEventSettingsUpdateSchema,
   AdminPuzzleCreateSchema,
   AdminHintUpdateSchema,
   AdminPuzzleMetadataUpdateSchema,
@@ -38,29 +39,12 @@ import { deriveRemainingSeconds, normalizeAnswer } from "./time.js";
 const SUBMISSION_LOCKS = new Set();
 const TEAM_PUZZLE_COUNT = 10;
 const TEAM_POOL_MAX_ATTEMPTS = 500;
+const MIN_EVENT_PUZZLE_COUNT = 20;
+const MAX_EVENT_PUZZLE_COUNT = 26;
+const PUBLIC_STREAM_TICK_MS = 1000;
 const ADMIN_ASSET_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const LIFELINE_DURATION_MS = 5 * 60 * 1000;
 const CODE_CHECKER_FILE_TOKENS = ["solution", "organizer_solution", "verifier", "correct", "answer"];
-const PUZZLE_TYPE_POINTS = {
-  image_cipher: 2,
-  html_inspect: 2,
-  ascii_numeric: 2,
-  ascii_art: 2,
-  ascii: 2,
-  audio_morse: 3,
-  audio_cipher: 3,
-  progressive_caesar: 3,
-  caesar: 3,
-  otp: 1,
-  time_based_otp: 1,
-  visual_otp: 1,
-  book_cipher: 2,
-  reverse: 1,
-  reverse_text: 1,
-  fix_errors: 2,
-  maze: 2,
-  print_statement_maze: 2
-};
 
 const adminAssetUpload = multer({
   storage: multer.memoryStorage(),
@@ -399,8 +383,35 @@ async function ensureTeamPuzzleSet(prisma, { teamId, eventId }) {
 }
 
 async function getTeamPuzzleOrder(prisma, { teamId, eventId }) {
-  const teamSet = await ensureTeamPuzzleSet(prisma, { teamId, eventId });
-  return normalizeOrder(teamSet.puzzleOrder, teamSet.puzzleOrder).slice(0, TEAM_PUZZLE_COUNT);
+  const event = await prisma.event.findFirst({
+    where: {
+      id: eventId
+    }
+  });
+
+  if (!event || !eventHasStarted(event)) {
+    return [];
+  }
+
+  const [eventPuzzles, teamSet] = await Promise.all([
+    prisma.puzzle.findMany({
+      where: { eventId },
+      orderBy: { orderIndex: "asc" },
+      select: { id: true }
+    }),
+    prisma.teamPuzzleSet.findUnique({
+      where: {
+        teamId_eventId: {
+          teamId,
+          eventId
+        }
+      }
+    })
+  ]);
+
+  const orderedPuzzleIds = getOrderedPuzzleIds(eventPuzzles);
+  const frozenPuzzleIds = getFrozenPuzzleIds(event, orderedPuzzleIds);
+  return normalizeOrder(teamSet?.puzzleOrder, frozenPuzzleIds).slice(0, frozenPuzzleIds.length);
 }
 
 async function addPuzzleToTeamPool(prisma, { teamId, eventId, puzzleId }) {
@@ -490,8 +501,59 @@ async function removePuzzleFromTeamPool(prisma, { teamId, eventId, puzzleId }) {
   });
 }
 
+async function getTeamPuzzleState(prisma, { teamId, event }) {
+  if (!eventHasStarted(event)) {
+    return {
+      teamSet: null,
+      order: [],
+      currentPuzzleIndex: 0,
+      currentPuzzleId: null,
+      isStarted: false,
+      isFinished: false
+    };
+  }
+
+  const [eventPuzzles, teamSet] = await Promise.all([
+    prisma.puzzle.findMany({
+      where: { eventId: event.id },
+      orderBy: { orderIndex: "asc" },
+      select: { id: true }
+    }),
+    prisma.teamPuzzleSet.findUnique({
+      where: {
+        teamId_eventId: {
+          teamId,
+          eventId: event.id
+        }
+      }
+    })
+  ]);
+
+  const orderedPuzzleIds = getOrderedPuzzleIds(eventPuzzles);
+  const frozenPuzzleIds = getFrozenPuzzleIds(event, orderedPuzzleIds);
+  const order = normalizeOrder(teamSet?.puzzleOrder, frozenPuzzleIds).slice(0, frozenPuzzleIds.length);
+  const currentPuzzleIndex = normalizeCurrentPuzzleIndex(teamSet?.currentPuzzleIndex, order.length);
+  const isFinished = order.length > 0 && currentPuzzleIndex >= order.length;
+  const currentPuzzleId = isFinished ? null : order[currentPuzzleIndex] || null;
+
+  return {
+    teamSet,
+    order,
+    currentPuzzleIndex,
+    currentPuzzleId,
+    isStarted: true,
+    isFinished
+  };
+}
+
 async function getAssignedPuzzle(prisma, { teamId, eventId, identifier, includeHints = false, isAdmin = false }) {
-  const [order, puzzle] = await Promise.all([
+  const event = await prisma.event.findFirst({
+    where: {
+      id: eventId
+    }
+  });
+
+  const [state, puzzle] = await Promise.all([
     isAdmin
       ? prisma.puzzle
           .findMany({
@@ -499,8 +561,15 @@ async function getAssignedPuzzle(prisma, { teamId, eventId, identifier, includeH
             orderBy: { orderIndex: "asc" },
             select: { id: true }
           })
-          .then((rows) => rows.map((row) => row.id))
-      : getTeamPuzzleOrder(prisma, { teamId, eventId }),
+          .then((rows) => ({
+            teamSet: null,
+            order: getOrderedPuzzleIds(rows),
+            currentPuzzleIndex: 0,
+            currentPuzzleId: null,
+            isStarted: true,
+            isFinished: false
+          }))
+      : getTeamPuzzleState(prisma, { teamId, event }),
     prisma.puzzle.findFirst({
       where: {
         eventId,
@@ -510,23 +579,65 @@ async function getAssignedPuzzle(prisma, { teamId, eventId, identifier, includeH
     })
   ]);
 
-  if (!puzzle || !order.includes(puzzle.id)) {
-    return { puzzle: null, order, teamOrderIndex: -1 };
+  if (!puzzle || (!isAdmin && !state.order.includes(puzzle.id))) {
+    return { puzzle: null, ...state, teamOrderIndex: -1 };
   }
 
   return {
     puzzle,
-    order,
-    teamOrderIndex: order.indexOf(puzzle.id)
+    ...state,
+    teamOrderIndex: state.order.indexOf(puzzle.id)
   };
 }
 
-function buildAccessiblePuzzleSet(order) {
-  return new Set(order);
+function buildAccessiblePuzzleSet(currentPuzzleId) {
+  return new Set(currentPuzzleId ? [currentPuzzleId] : []);
 }
 
-async function teamCanAccessPuzzle(_prisma, { puzzleId, order }) {
-  return order.includes(puzzleId);
+async function teamCanAccessPuzzle(_prisma, { puzzleId, currentPuzzleId, order = [], isAdmin = false }) {
+  if (isAdmin) {
+    return true;
+  }
+
+  if (currentPuzzleId) {
+    return currentPuzzleId === puzzleId;
+  }
+
+  return false;
+}
+
+async function teamCanAdvance(prisma, { teamId, currentPuzzleId, event }) {
+  if (!currentPuzzleId || !event || !eventHasStarted(event) || getCompetitionSnapshot(event).isTimeUp) {
+    return false;
+  }
+
+  const solve = await prisma.puzzleSolve.findUnique({
+    where: {
+      teamId_puzzleId: {
+        teamId,
+        puzzleId: currentPuzzleId
+      }
+    }
+  });
+
+  return Boolean(solve);
+}
+
+async function teamCanSkip(prisma, { teamId, currentPuzzleId, event }) {
+  if (!currentPuzzleId || !event || !eventHasStarted(event) || getCompetitionSnapshot(event).isTimeUp) {
+    return false;
+  }
+
+  const solve = await prisma.puzzleSolve.findUnique({
+    where: {
+      teamId_puzzleId: {
+        teamId,
+        puzzleId: currentPuzzleId
+      }
+    }
+  });
+
+  return !Boolean(solve);
 }
 
 async function getTeamTargetedPuzzleIdsFromAudit(prisma, { teamId, poolPuzzleIds, slugToId }) {
@@ -884,71 +995,99 @@ function normalizePuzzleTypeKey(value) {
     .replace(/^_+|_+$/g, "");
 }
 
-function pointsForPuzzleType(type) {
-  const key = normalizePuzzleTypeKey(type);
-  return Number(PUZZLE_TYPE_POINTS[key] || 0);
+function getConfiguredPuzzleCount(event) {
+  const requested = Number.parseInt(`${event?.puzzleCount ?? MIN_EVENT_PUZZLE_COUNT}`, 10);
+  if (Number.isNaN(requested)) {
+    return MIN_EVENT_PUZZLE_COUNT;
+  }
+
+  return Math.max(MIN_EVENT_PUZZLE_COUNT, Math.min(MAX_EVENT_PUZZLE_COUNT, requested));
 }
 
-function sumPointsForSolvedRows(solveRows, puzzleTypeById) {
-  return solveRows.reduce((total, row) => {
-    const puzzleType = puzzleTypeById.get(row.puzzleId);
-    return total + pointsForPuzzleType(puzzleType);
-  }, 0);
+function eventHasStarted(event) {
+  return Boolean(event?.startedAt);
 }
 
-function calculateNetPoints({ solveRows, puzzleTypeById, revealRows }) {
-  const solvedPoints = sumPointsForSolvedRows(solveRows, puzzleTypeById);
-  const hintPenaltyPoints = sumHintPenaltyPoints(revealRows);
-  return Math.max(0, solvedPoints - hintPenaltyPoints);
+function getOrderedPuzzleIds(rows) {
+  return rows.map((row) => `${row.id}`);
 }
 
-async function buildLeaderboardRows(prisma, eventId) {
-  const [teams, eventPuzzles] = await Promise.all([
-    prisma.team.findMany({
-      orderBy: { name: "asc" }
-    }),
-    prisma.puzzle.findMany({
-      where: { eventId }
-    })
-  ]);
+function getFrozenPuzzleIds(event, orderedPuzzleIds) {
+  const frozenOrder = normalizeOrder(event?.frozenPuzzleIds, orderedPuzzleIds);
+  const targetCount = Math.min(getConfiguredPuzzleCount(event), orderedPuzzleIds.length);
+  if (frozenOrder.length >= targetCount) {
+    return frozenOrder.slice(0, targetCount);
+  }
+
+  return orderedPuzzleIds.slice(0, targetCount);
+}
+
+function normalizeCurrentPuzzleIndex(rawValue, orderLength) {
+  const parsed = Number.parseInt(`${rawValue ?? 0}`, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return Math.min(parsed, orderLength);
+}
+
+function orderSignature(order) {
+  return order.join("|");
+}
+
+function generateUniqueTeamOrder(validIds, blockedSignatures) {
+  if (validIds.length <= 1) {
+    return [...validIds];
+  }
+
+  for (let attempt = 0; attempt < TEAM_POOL_MAX_ATTEMPTS; attempt += 1) {
+    const candidate = shuffleIds(validIds);
+    const signature = orderSignature(candidate);
+    if (!blockedSignatures.has(signature)) {
+      return candidate;
+    }
+  }
+
+  throw new Error("Unable to generate a unique team puzzle order after multiple attempts.");
+}
+
+function getLastSolvedAt(solveRows) {
+  return solveRows.reduce((latest, row) => {
+    if (!row?.solvedAt) {
+      return latest;
+    }
+
+    const current = row.solvedAt instanceof Date ? row.solvedAt : new Date(row.solvedAt);
+    if (!latest || current.getTime() > latest.getTime()) {
+      return current;
+    }
+
+    return latest;
+  }, null);
+}
+
+async function buildLeaderboardRows(prisma, event) {
+  const teams = await prisma.team.findMany({
+    orderBy: { name: "asc" }
+  });
 
   const participantTeams = teams.filter((team) => !team.isAdmin);
-  const puzzleTypeById = new Map(eventPuzzles.map((row) => [row.id, row.type]));
+  const startedAtMs = event?.startsAt ? new Date(event.startsAt).getTime() : null;
 
   const rows = await Promise.all(
     participantTeams.map(async (team) => {
-      const [solveRows, revealRows] = await Promise.all([
+      const [solveRows, hintPenaltyPoints] = await Promise.all([
         prisma.puzzleSolve.findMany({
           where: { teamId: team.id }
         }),
-        prisma.hintRevealAudit.findMany({
-          where: { teamId: team.id },
-          select: {
-            tier: true,
-            penaltySeconds: true
-          }
-        })
+        getTeamPenaltyPoints(prisma, team.id)
       ]);
 
-      const penaltiesPoints = sumHintPenaltyPoints(revealRows);
-      const totalPoints = calculateNetPoints({
-        solveRows,
-        puzzleTypeById,
-        revealRows
-      });
-      const solvedCount = solveRows.length;
-      const lastSolvedAt = solveRows.reduce((latest, row) => {
-        if (!row?.solvedAt) {
-          return latest;
-        }
-
-        const current = row.solvedAt instanceof Date ? row.solvedAt : new Date(row.solvedAt);
-        if (!latest || current.getTime() > latest.getTime()) {
-          return current;
-        }
-
-        return latest;
-      }, null);
+      const lastSolvedAt = getLastSolvedAt(solveRows);
+      const totalElapsedSeconds =
+        lastSolvedAt && startedAtMs !== null
+          ? Math.max(0, Math.floor((lastSolvedAt.getTime() - startedAtMs) / 1000))
+          : null;
 
       return {
         team: {
@@ -956,31 +1095,27 @@ async function buildLeaderboardRows(prisma, eventId) {
           code: team.code,
           name: team.name
         },
-        totalPoints,
-        solvedCount,
-        penaltiesPoints,
-        lastSolvedAt: lastSolvedAt ? lastSolvedAt.toISOString() : null
+        solvedCount: solveRows.length,
+        hintPenaltyPoints,
+        totalElapsedSeconds,
+        lastCorrectAt: lastSolvedAt ? lastSolvedAt.toISOString() : null
       };
     })
   );
 
   rows.sort((left, right) => {
-    if (right.totalPoints !== left.totalPoints) {
-      return right.totalPoints - left.totalPoints;
-    }
-
     if (right.solvedCount !== left.solvedCount) {
       return right.solvedCount - left.solvedCount;
     }
 
-    if (left.penaltiesPoints !== right.penaltiesPoints) {
-      return left.penaltiesPoints - right.penaltiesPoints;
+    if (left.hintPenaltyPoints !== right.hintPenaltyPoints) {
+      return left.hintPenaltyPoints - right.hintPenaltyPoints;
     }
 
-    const leftTime = left.lastSolvedAt ? new Date(left.lastSolvedAt).getTime() : Number.POSITIVE_INFINITY;
-    const rightTime = right.lastSolvedAt ? new Date(right.lastSolvedAt).getTime() : Number.POSITIVE_INFINITY;
-    if (leftTime !== rightTime) {
-      return leftTime - rightTime;
+    const leftElapsed = left.totalElapsedSeconds ?? Number.POSITIVE_INFINITY;
+    const rightElapsed = right.totalElapsedSeconds ?? Number.POSITIVE_INFINITY;
+    if (leftElapsed !== rightElapsed) {
+      return leftElapsed - rightElapsed;
     }
 
     return left.team.name.localeCompare(right.team.name);
@@ -996,6 +1131,7 @@ function inferAssetRole(relativePath) {
   const normalized = `${relativePath || ""}`.replace(/\\/g, "/").toLowerCase();
   const parsed = parseTeamPrivateAssetPath(normalized);
   const fileName = path.basename(parsed.displayRelativePath || normalized);
+  const fileStem = path.basename(fileName, path.extname(fileName));
 
   if (fileName.startsWith("solution-")) {
     return "solution";
@@ -1003,6 +1139,14 @@ function inferAssetRole(relativePath) {
 
   if (fileName.startsWith("reference-")) {
     return "reference";
+  }
+
+  if (fileStem.startsWith("answer_template")) {
+    return "reference";
+  }
+
+  if (CODE_CHECKER_FILE_TOKENS.some((token) => fileStem.startsWith(token))) {
+    return "solution";
   }
 
   return "regular";
@@ -1365,24 +1509,29 @@ function listPuzzleAssets(slug, { viewerTeamId = null, isAdmin = false } = {}) {
   walkAssetFiles(puzzleDir, puzzleDir, files, 200);
 
   return files
-    .filter((relativePath) => isParticipantVisibleAsset(relativePath))
+    .filter((relativePath) => isAdmin || isParticipantVisibleAsset(relativePath))
     .filter((relativePath) => canTeamViewAsset(relativePath, { viewerTeamId, isAdmin }))
     .sort()
     .map((storedRelativePath) => {
       const parsed = parseTeamPrivateAssetPath(storedRelativePath);
       const displayRelativePath = parsed.displayRelativePath || storedRelativePath;
+      const role = inferAssetRole(storedRelativePath);
       return {
         name: path.basename(displayRelativePath),
         relativePath: displayRelativePath,
+        storedRelativePath,
         mediaType: inferAssetMediaType(displayRelativePath),
-        role: inferAssetRole(storedRelativePath),
+        role,
         visibility: parsed.isTeamPrivate ? "team" : "shared",
-        url: `/puzzle-assets/${encodeURIComponent(slug)}?file=${encodeURIComponent(storedRelativePath)}`
+        url:
+          role === "solution" && !isAdmin
+            ? null
+            : `/puzzle-assets/${encodeURIComponent(slug)}?file=${encodeURIComponent(storedRelativePath)}`
       };
     });
 }
 
-function resolvePuzzleAssetFile(slug, relativePath, { viewerTeamId = null, isAdmin = false } = {}) {
+function resolvePuzzleAssetFile(slug, relativePath, { viewerTeamId = null, isAdmin = false, allowHidden = false } = {}) {
   const puzzleDir = resolveImportedPuzzleDir(slug);
   if (!puzzleDir || !relativePath) {
     return null;
@@ -1403,7 +1552,7 @@ function resolvePuzzleAssetFile(slug, relativePath, { viewerTeamId = null, isAdm
   }
 
   const relative = path.relative(path.resolve(puzzleDir), filePath).split(path.sep).join("/");
-  if (!isParticipantVisibleAsset(relative)) {
+  if (!allowHidden && !isParticipantVisibleAsset(relative)) {
     return null;
   }
 
@@ -1508,10 +1657,55 @@ async function appendAdminAudit(prisma, { adminTeamId, action, entityType, entit
   });
 }
 
+function getCompetitionSnapshot(event) {
+  const now = getCompetitionNow(event);
+  const remainingSeconds = deriveRemainingSeconds({
+    now,
+    eventEndsAt: event.endsAt,
+    penaltiesSeconds: 0
+  });
+
+  return {
+    now,
+    remainingSeconds,
+    isTimeUp: remainingSeconds <= 0
+  };
+}
+
+function buildEventSummary(event) {
+  return {
+    id: event.id,
+    name: event.name,
+    startsAt: event.startsAt.toISOString(),
+    endsAt: event.endsAt.toISOString(),
+    startedAt: event.startedAt ? event.startedAt.toISOString() : null,
+    isStarted: eventHasStarted(event),
+    puzzleCount: getConfiguredPuzzleCount(event),
+    frozenPuzzleCount: Array.isArray(event.frozenPuzzleIds) ? event.frozenPuzzleIds.length : 0
+  };
+}
+
+function buildPublicEventStatePayload(event) {
+  const competition = getCompetitionSnapshot(event);
+
+  return {
+    ok: true,
+    event: buildEventSummary(event),
+    competition: {
+      isPaused: Boolean(event.isPaused),
+      pausedAt: event.pausedAt ? event.pausedAt.toISOString() : null,
+      isTimeUp: competition.isTimeUp
+    },
+    remainingSeconds: competition.remainingSeconds,
+    now: competition.now.toISOString()
+  };
+}
+
 export function createApp({ prisma, config }) {
   const app = express();
   const allowedOrigins = getAllowedCorsOrigins(config);
   const activeLifelines = new Map();
+  const publicStreamClients = new Set();
   const leaderboardCacheTtlMs = Math.max(0, Number(config.LEADERBOARD_CACHE_TTL_MS || 3000));
   let leaderboardCache = null;
 
@@ -1519,25 +1713,168 @@ export function createApp({ prisma, config }) {
     leaderboardCache = null;
   };
 
-  const getCachedLeaderboard = async (eventId) => {
+  const getCachedLeaderboard = async (event) => {
     const nowMs = Date.now();
     if (
       leaderboardCache &&
-      leaderboardCache.eventId === eventId &&
+      leaderboardCache.eventId === event.id &&
       leaderboardCache.expiresAtMs > nowMs
     ) {
       return leaderboardCache;
     }
 
-    const leaderboard = await buildLeaderboardRows(prisma, eventId);
+    const leaderboard = await buildLeaderboardRows(prisma, event);
     const next = {
-      eventId,
+      eventId: event.id,
       generatedAt: new Date(nowMs).toISOString(),
       expiresAtMs: nowMs + leaderboardCacheTtlMs,
       leaderboard
     };
     leaderboardCache = next;
     return next;
+  };
+
+  const writeSseEvent = (res, eventName, payload) => {
+    res.write(`event: ${eventName}\n`);
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  const buildPublicRealtimeSnapshot = async () => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return {
+        ok: true,
+        eventState: null,
+        generatedAt: new Date().toISOString(),
+        leaderboard: []
+      };
+    }
+
+    const leaderboard = await getCachedLeaderboard(event);
+    return {
+      ok: true,
+      eventState: buildPublicEventStatePayload(event),
+      generatedAt: leaderboard.generatedAt,
+      leaderboard: leaderboard.leaderboard
+    };
+  };
+
+  const broadcastPublicSnapshot = async () => {
+    if (publicStreamClients.size === 0) {
+      return;
+    }
+
+    const snapshot = await buildPublicRealtimeSnapshot();
+    for (const res of publicStreamClients) {
+      writeSseEvent(res, "snapshot", snapshot);
+    }
+  };
+
+  const publicStreamInterval = setInterval(() => {
+    broadcastPublicSnapshot().catch(() => {});
+  }, PUBLIC_STREAM_TICK_MS);
+  publicStreamInterval.unref?.();
+
+  const startEventAssignments = async (event, adminTeamId) => {
+    if (eventHasStarted(event)) {
+      throw new Error("Event has already started.");
+    }
+
+    const [orderedPuzzles, teams, existingSets] = await Promise.all([
+      prisma.puzzle.findMany({
+        where: { eventId: event.id },
+        orderBy: { orderIndex: "asc" },
+        select: { id: true }
+      }),
+      prisma.team.findMany({
+        orderBy: { name: "asc" }
+      }),
+      prisma.teamPuzzleSet.findMany({
+        where: { eventId: event.id },
+        select: {
+          id: true,
+          teamId: true
+        }
+      })
+    ]);
+
+    const participantTeams = teams.filter((team) => !team.isAdmin);
+    if (participantTeams.length === 0) {
+      throw new Error("At least one participant team must exist before the event can start.");
+    }
+
+    const orderedPuzzleIds = getOrderedPuzzleIds(orderedPuzzles);
+    const configuredPuzzleCount = getConfiguredPuzzleCount(event);
+    if (orderedPuzzleIds.length < configuredPuzzleCount) {
+      throw new Error(`At least ${configuredPuzzleCount} puzzles are required before starting the event.`);
+    }
+
+    const frozenPuzzleIds = orderedPuzzleIds.slice(0, configuredPuzzleCount);
+    const usedOrderSignatures = new Set();
+    const startedAt = new Date();
+    const configuredDurationMs = Math.max(
+      60_000,
+      new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime()
+    );
+    const nextEndsAt = new Date(startedAt.getTime() + configuredDurationMs);
+
+    const startedEvent = await prisma.$transaction(async (tx) => {
+      const updatedEvent = await tx.event.update({
+        where: { id: event.id },
+        data: {
+          startedAt,
+          startsAt: startedAt,
+          endsAt: nextEndsAt,
+          frozenPuzzleIds,
+          isPaused: false,
+          pausedAt: null
+        }
+      });
+
+      for (const team of participantTeams) {
+        const order = generateUniqueTeamOrder(frozenPuzzleIds, usedOrderSignatures);
+        usedOrderSignatures.add(orderSignature(order));
+        const existing = existingSets.find((row) => row.teamId === team.id) || null;
+
+        if (existing) {
+          await tx.teamPuzzleSet.update({
+            where: { id: existing.id },
+            data: {
+              puzzleOrder: order,
+              currentPuzzleIndex: 0
+            }
+          });
+        } else {
+          await tx.teamPuzzleSet.create({
+            data: {
+              teamId: team.id,
+              eventId: event.id,
+              puzzleOrder: order,
+              currentPuzzleIndex: 0
+            }
+          });
+        }
+      }
+
+      return updatedEvent;
+    });
+
+    await appendAdminAudit(prisma, {
+      adminTeamId,
+      action: "start_event",
+      entityType: "event",
+      entityId: startedEvent.id,
+      details: {
+        startedAt: startedAt.toISOString(),
+        endsAt: nextEndsAt.toISOString(),
+        puzzleCount: configuredPuzzleCount,
+        teamCount: participantTeams.length
+      }
+    });
+
+    clearLeaderboardCache();
+    await broadcastPublicSnapshot();
+    return startedEvent;
   };
 
   const getActiveLifeline = (teamId) => {
@@ -1656,6 +1993,50 @@ export function createApp({ prisma, config }) {
     return res.type("html").send(html);
   });
 
+  app.get("/public/event-state", async (_req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    return res.json(buildPublicEventStatePayload(event));
+  });
+
+  app.get("/leaderboard", async (_req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    const snapshot = await getCachedLeaderboard(event);
+    return res.json({
+      ok: true,
+      generatedAt: snapshot.generatedAt,
+      leaderboard: snapshot.leaderboard
+    });
+  });
+
+  app.get("/events/stream", async (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    publicStreamClients.add(res);
+    writeSseEvent(res, "snapshot", await buildPublicRealtimeSnapshot());
+
+    const keepAlive = setInterval(() => {
+      res.write(": keep-alive\n\n");
+    }, 15000);
+    keepAlive.unref?.();
+
+    req.on("close", () => {
+      clearInterval(keepAlive);
+      publicStreamClients.delete(res);
+      res.end();
+    });
+  });
+
   app.post("/auth/team-session", async (req, res) => {
     const parsed = parseBody(TeamSessionRequestSchema, req.body);
     if (!parsed.ok) {
@@ -1691,6 +2072,13 @@ export function createApp({ prisma, config }) {
         });
       }
 
+      if (eventHasStarted(event)) {
+        return res.status(403).json({
+          ok: false,
+          message: "Team registration is closed because the event has already started."
+        });
+      }
+
       team = await prisma.team.create({
         data: {
           code: normalizedCode,
@@ -1698,28 +2086,6 @@ export function createApp({ prisma, config }) {
           isAdmin: false
         }
       });
-    }
-
-    if (!team.isAdmin) {
-      try {
-        await ensureTeamPuzzleSet(prisma, { teamId: team.id, eventId: event.id });
-      } catch (error) {
-        const fallbackToTemporary = `${error?.message || ""}`.includes("Unable to assign a unique puzzle pool");
-        if (!fallbackToTemporary) {
-          return res.status(400).json({ ok: false, message: error.message });
-        }
-
-        try {
-          await assignTeamPuzzleSet(prisma, {
-            teamId: team.id,
-            eventId: event.id,
-            forceRegenerate: true,
-            temporary: true
-          });
-        } catch (fallbackError) {
-          return res.status(400).json({ ok: false, message: fallbackError.message });
-        }
-      }
     }
 
     const { token } = await issueTeamSession({ prisma, team, event, config });
@@ -1784,7 +2150,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, isStarted } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: parsed.data.puzzleId,
@@ -1795,13 +2161,17 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "Puzzle not found in this team's pool." });
     }
 
+    if (!isStarted) {
+      return res.status(403).json({ ok: false, message: "Event has not started yet." });
+    }
+
     const canAccess = await teamCanAccessPuzzle(prisma, {
       teamId: req.auth.team.id,
       puzzleId: puzzle.id,
-      order
+      currentPuzzleId
     });
     if (!canAccess) {
-      return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+      return res.status(403).json({ ok: false, message: "Lifeline can only be activated for the current puzzle." });
     }
 
     const lifeline = activateLifeline({
@@ -1975,46 +2345,23 @@ export function createApp({ prisma, config }) {
     }
 
     const penaltiesPoints = await getTeamPenaltyPoints(prisma, req.auth.team.id);
-    const now = getCompetitionNow(event);
-    const remainingSeconds = deriveRemainingSeconds({
-      now,
-      eventEndsAt: event.endsAt,
-      penaltiesSeconds: 0
-    });
+    const competition = getCompetitionSnapshot(event);
 
     const payload = EventStateResponseSchema.parse({
       enforcement: enforcementForTeam(req.auth.team),
       ok: true,
-      event: {
-        id: event.id,
-        name: event.name,
-        startsAt: event.startsAt.toISOString(),
-        endsAt: event.endsAt.toISOString()
-      },
+      event: buildEventSummary(event),
       competition: {
         isPaused: Boolean(event.isPaused),
-        pausedAt: event.pausedAt ? event.pausedAt.toISOString() : null
+        pausedAt: event.pausedAt ? event.pausedAt.toISOString() : null,
+        isTimeUp: competition.isTimeUp
       },
       penaltiesPoints,
-      remainingSeconds,
-      now: now.toISOString()
+      remainingSeconds: competition.remainingSeconds,
+      now: competition.now.toISOString()
     });
 
     return res.json(payload);
-  });
-
-  app.get("/leaderboard", async (_req, res) => {
-    const event = await getActiveEvent(prisma);
-    if (!event) {
-      return res.status(404).json({ ok: false, message: "No active event configured." });
-    }
-
-    const snapshot = await getCachedLeaderboard(event.id);
-    return res.json({
-      ok: true,
-      generatedAt: snapshot.generatedAt,
-      leaderboard: snapshot.leaderboard
-    });
   });
 
   app.get("/puzzles", async (req, res) => {
@@ -2023,18 +2370,42 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const puzzleOrder = req.auth.team.isAdmin
-      ? (
-          await prisma.puzzle.findMany({
-            where: { eventId: event.id },
-            orderBy: { orderIndex: "asc" },
-            select: { id: true }
-          })
-        ).map((row) => row.id)
-      : await getTeamPuzzleOrder(prisma, {
+    const teamState = req.auth.team.isAdmin
+      ? {
+          order: (
+            await prisma.puzzle.findMany({
+              where: { eventId: event.id },
+              orderBy: { orderIndex: "asc" },
+              select: { id: true }
+            })
+          ).map((row) => row.id),
+          currentPuzzleId: null,
+          currentPuzzleIndex: 0,
+          isStarted: true,
+          isFinished: false
+        }
+      : await getTeamPuzzleState(prisma, {
           teamId: req.auth.team.id,
-          eventId: event.id
+          event
         });
+    const puzzleOrder = teamState.order;
+
+    if (!req.auth.team.isAdmin && !teamState.isStarted) {
+      return res.json(
+        PuzzleListResponseSchema.parse({
+          ok: true,
+          puzzles: [],
+          currentPuzzleId: null,
+          currentPuzzleIndex: 0,
+          totalPuzzles: 0,
+          canAdvance: false,
+          canSkip: false,
+          isStarted: false,
+          isFinished: false
+        })
+      );
+    }
+
     const puzzles = await prisma.puzzle.findMany({
       where: {
         eventId: event.id,
@@ -2057,24 +2428,49 @@ export function createApp({ prisma, config }) {
 
     const solvedSet = new Set(solves.map((row) => row.puzzleId));
     const attemptedSet = new Set(attempts.map((row) => row.puzzleId));
-    const accessibleSet = req.auth.team.isAdmin ? new Set(puzzleOrder) : buildAccessiblePuzzleSet(puzzleOrder);
+    const accessibleSet = req.auth.team.isAdmin
+      ? new Set(puzzleOrder)
+      : buildAccessiblePuzzleSet(teamState.currentPuzzleId);
+    const canAdvance = req.auth.team.isAdmin
+      ? false
+      : await teamCanAdvance(prisma, {
+          teamId: req.auth.team.id,
+          currentPuzzleId: teamState.currentPuzzleId,
+          event
+        });
+    const canSkip = req.auth.team.isAdmin
+      ? false
+      : await teamCanSkip(prisma, {
+          teamId: req.auth.team.id,
+          currentPuzzleId: teamState.currentPuzzleId,
+          event
+        });
 
     const payload = PuzzleListResponseSchema.parse({
       ok: true,
       puzzles: orderedPuzzles
-        .filter((row) => accessibleSet.has(row.id))
         .map((row) => ({
-        id: row.id,
-        slug: row.slug,
-        title: row.title,
-        type: row.type,
-        orderIndex: puzzleOrder.indexOf(row.id) + 1,
-        status: statusForPuzzle({ puzzleId: row.id, solvedSet, attemptedSet }),
-        toolConfig: mapToolConfig(row, {
-          viewerTeamId: req.auth.team.id,
-          isAdmin: req.auth.team.isAdmin
-        })
-        }))
+          id: row.id,
+          slug: row.slug,
+          title: row.title,
+          type: row.type,
+          orderIndex: puzzleOrder.indexOf(row.id) + 1,
+          status: statusForPuzzle({ puzzleId: row.id, solvedSet, attemptedSet }),
+          toolConfig:
+            req.auth.team.isAdmin || accessibleSet.has(row.id)
+              ? mapToolConfig(row, {
+                  viewerTeamId: req.auth.team.id,
+                  isAdmin: req.auth.team.isAdmin
+                })
+              : PuzzleToolConfigSchema.parse({})
+        })),
+      currentPuzzleId: teamState.currentPuzzleId,
+      currentPuzzleIndex: teamState.currentPuzzleIndex,
+      totalPuzzles: puzzleOrder.length,
+      canAdvance,
+      canSkip,
+      isStarted: teamState.isStarted,
+      isFinished: teamState.isFinished
     });
 
     return res.json(payload);
@@ -2086,7 +2482,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, teamOrderIndex, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, teamOrderIndex, order, currentPuzzleId, isStarted } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2098,14 +2494,22 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "Puzzle not found." });
     }
 
+    if (!req.auth.team.isAdmin && !isStarted) {
+      return res.status(403).json({ ok: false, message: "Event has not started yet." });
+    }
+
     if (!req.auth.team.isAdmin) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({
+          ok: false,
+          message: "This puzzle is locked. Resume at your current active puzzle.",
+          currentPuzzleId
+        });
       }
     }
 
@@ -2137,6 +2541,20 @@ export function createApp({ prisma, config }) {
 
     const revealedTiers = new Set(reveals.map((entry) => entry.tier));
     const canSeeAllHints = Boolean(req.auth?.team?.isAdmin);
+    const canAdvance = req.auth.team.isAdmin
+      ? false
+      : await teamCanAdvance(prisma, {
+          teamId: req.auth.team.id,
+          currentPuzzleId,
+          event
+        });
+    const canSkip = req.auth.team.isAdmin
+      ? false
+      : await teamCanSkip(prisma, {
+          teamId: req.auth.team.id,
+          currentPuzzleId,
+          event
+        });
 
     const payload = PuzzleDetailResponseSchema.parse({
       ok: true,
@@ -2160,7 +2578,10 @@ export function createApp({ prisma, config }) {
         progress: {
           status: solve ? "solved" : attempts > 0 ? "attempted" : "unsolved",
           attempts,
-          solvedAt: solve?.solvedAt ? solve.solvedAt.toISOString() : null
+          solvedAt: solve?.solvedAt ? solve.solvedAt.toISOString() : null,
+          canAdvance,
+          canSkip,
+          isCurrent: req.auth.team.isAdmin ? false : currentPuzzleId === puzzle.id
         }
       }
     });
@@ -2174,7 +2595,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2189,10 +2610,10 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
@@ -2209,7 +2630,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.slug,
@@ -2224,16 +2645,17 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
     const filePath = resolvePuzzleAssetFile(puzzle.slug, `${req.query.file || ""}`, {
       viewerTeamId: req.auth.team.id,
-      isAdmin: req.auth.team.isAdmin
+      isAdmin: req.auth.team.isAdmin,
+      allowHidden: req.auth.team.isAdmin
     });
     if (!filePath) {
       return res.status(404).json({ ok: false, message: "Asset file not found." });
@@ -2248,7 +2670,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2263,10 +2685,10 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
@@ -2305,7 +2727,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2320,10 +2742,10 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
@@ -2434,7 +2856,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2448,10 +2870,10 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
@@ -2481,7 +2903,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2495,10 +2917,10 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
@@ -2615,7 +3037,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2631,10 +3053,10 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
     }
 
@@ -2700,7 +3122,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    const { puzzle, currentPuzzleId, currentPuzzleIndex } = await getAssignedPuzzle(prisma, {
       teamId: req.auth.team.id,
       eventId: event.id,
       identifier: req.params.id,
@@ -2715,11 +3137,15 @@ export function createApp({ prisma, config }) {
       const canAccess = await teamCanAccessPuzzle(prisma, {
         teamId: req.auth.team.id,
         puzzleId: puzzle.id,
-        order
+        currentPuzzleId
       });
       if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
+        return res.status(403).json({ ok: false, message: "This puzzle is locked.", currentPuzzleId });
       }
+    }
+
+    if (!req.auth.team.isAdmin && getCompetitionSnapshot(event).isTimeUp) {
+      return res.status(423).json({ ok: false, message: "Time is up for this event." });
     }
 
     const lockKey = `${req.auth.team.id}:${puzzle.id}`;
@@ -2730,6 +3156,22 @@ export function createApp({ prisma, config }) {
     SUBMISSION_LOCKS.add(lockKey);
 
     try {
+      const existingSolve = await prisma.puzzleSolve.findUnique({
+        where: {
+          teamId_puzzleId: {
+            teamId: req.auth.team.id,
+            puzzleId: puzzle.id
+          }
+        }
+      });
+
+      if (existingSolve) {
+        return res.status(409).json({
+          ok: false,
+          message: "Current puzzle is already solved. Click Next Puzzle to continue."
+        });
+      }
+
       const normalizedAttempt = normalizeAnswer(parsed.data.answer);
       const normalizedExpected = normalizeAnswer(puzzle.answerKey);
       const isCorrect = normalizedAttempt === normalizedExpected;
@@ -2738,17 +3180,8 @@ export function createApp({ prisma, config }) {
         data: {
           teamId: req.auth.team.id,
           puzzleId: puzzle.id,
-          answer: parsed.data.answer,
+          answer: normalizedAttempt,
           isCorrect
-        }
-      });
-
-      const existingSolve = await prisma.puzzleSolve.findUnique({
-        where: {
-          teamId_puzzleId: {
-            teamId: req.auth.team.id,
-            puzzleId: puzzle.id
-          }
         }
       });
 
@@ -2770,40 +3203,21 @@ export function createApp({ prisma, config }) {
           },
           update: {}
         });
-        clearLeaderboardCache();
       }
-
-      const pointsAwarded = shouldCreateSolve ? pointsForPuzzleType(puzzle.type) : 0;
-      const [teamSolveRows, eventPuzzles, revealRows] = await Promise.all([
-        prisma.puzzleSolve.findMany({
-          where: { teamId: req.auth.team.id },
-          select: { puzzleId: true }
-        }),
-        prisma.puzzle.findMany({
-          where: { eventId: event.id }
-        }),
-        prisma.hintRevealAudit.findMany({
-          where: { teamId: req.auth.team.id },
-          select: {
-            tier: true,
-            penaltySeconds: true
-          }
-        })
-      ]);
-      const puzzleTypeById = new Map(eventPuzzles.map((row) => [row.id, row.type]));
-      const totalPoints = calculateNetPoints({
-        solveRows: teamSolveRows,
-        puzzleTypeById,
-        revealRows
-      });
+      clearLeaderboardCache();
+      await broadcastPublicSnapshot();
 
       const payload = PuzzleSubmitResponseSchema.parse({
         ok: true,
         result: isCorrect ? "correct" : "incorrect",
-        message: isCorrect ? "Correct answer submitted." : "Incorrect answer, try again.",
+        message: isCorrect
+          ? "Correct answer submitted. Click Next Puzzle to continue."
+          : "Incorrect answer submitted. Try again.",
         status: solve ? "solved" : "attempted",
-        pointsAwarded,
-        totalPoints
+        answer: normalizedAttempt,
+        canAdvance: Boolean(solve),
+        currentPuzzleId,
+        currentPuzzleIndex
       });
 
       return res.json(payload);
@@ -2812,90 +3226,122 @@ export function createApp({ prisma, config }) {
     }
   });
 
-  app.post("/puzzles/:id/unsolve", async (req, res) => {
+  app.post("/puzzles/current/advance", async (req, res) => {
     const event = await getActiveEvent(prisma);
     if (!event) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const { puzzle, order } = await getAssignedPuzzle(prisma, {
+    if (req.auth.team.isAdmin) {
+      return res.status(403).json({ ok: false, message: "Advance is only available to participant teams." });
+    }
+
+    if (!eventHasStarted(event)) {
+      return res.status(403).json({ ok: false, message: "Event has not started yet." });
+    }
+
+    if (getCompetitionSnapshot(event).isTimeUp) {
+      return res.status(423).json({ ok: false, message: "Time is up for this event." });
+    }
+
+    const state = await getTeamPuzzleState(prisma, {
       teamId: req.auth.team.id,
-      eventId: event.id,
-      identifier: req.params.id,
-      isAdmin: req.auth.team.isAdmin
+      event
     });
 
-    if (!puzzle) {
-      return res.status(404).json({ ok: false, message: "Puzzle not found." });
+    if (!state.teamSet || !state.currentPuzzleId) {
+      return res.status(400).json({ ok: false, message: "No active puzzle is available to advance from." });
     }
 
-    if (!req.auth.team.isAdmin) {
-      const canAccess = await teamCanAccessPuzzle(prisma, {
-        teamId: req.auth.team.id,
-        puzzleId: puzzle.id,
-        order
-      });
-      if (!canAccess) {
-        return res.status(403).json({ ok: false, message: "Complete previous puzzles to unlock this puzzle." });
-      }
+    const canAdvance = await teamCanAdvance(prisma, {
+      teamId: req.auth.team.id,
+      currentPuzzleId: state.currentPuzzleId,
+      event
+    });
+    if (!canAdvance) {
+      return res.status(400).json({ ok: false, message: "Solve the current puzzle before advancing." });
     }
 
-    const existingSolve = await prisma.puzzleSolve.findUnique({
-      where: {
-        teamId_puzzleId: {
-          teamId: req.auth.team.id,
-          puzzleId: puzzle.id
-        }
+    const nextIndex = state.currentPuzzleIndex + 1;
+    const updated = await prisma.teamPuzzleSet.update({
+      where: { id: state.teamSet.id },
+      data: {
+        currentPuzzleIndex: nextIndex
       }
     });
 
-    if (!existingSolve) {
-      return res.status(400).json({ ok: false, message: "Puzzle is not currently marked solved." });
-    }
-
-    await prisma.puzzleSolve.deleteMany({
-      where: {
-        teamId: req.auth.team.id,
-        puzzleId: puzzle.id
-      }
-    });
-    clearLeaderboardCache();
-
-    const [attempts, teamSolveRows, eventPuzzles, revealRows] = await Promise.all([
-      prisma.puzzleAttempt.count({
-        where: {
-          teamId: req.auth.team.id,
-          puzzleId: puzzle.id
-        }
-      }),
-      prisma.puzzleSolve.findMany({
-        where: { teamId: req.auth.team.id },
-        select: { puzzleId: true }
-      }),
-      prisma.puzzle.findMany({
-        where: { eventId: event.id }
-      }),
-      prisma.hintRevealAudit.findMany({
-        where: { teamId: req.auth.team.id },
-        select: {
-          tier: true,
-          penaltySeconds: true
-        }
-      })
-    ]);
-
-    const puzzleTypeById = new Map(eventPuzzles.map((row) => [row.id, row.type]));
-    const totalPoints = calculateNetPoints({
-      solveRows: teamSolveRows,
-      puzzleTypeById,
-      revealRows
-    });
+    await broadcastPublicSnapshot();
 
     return res.json({
       ok: true,
-      message: "Puzzle marked as unsolved.",
-      status: attempts > 0 ? "attempted" : "unsolved",
-      totalPoints
+      message:
+        nextIndex >= state.order.length
+          ? "All assigned puzzles completed."
+          : "Advanced to the next puzzle.",
+      currentPuzzleIndex: normalizeCurrentPuzzleIndex(updated.currentPuzzleIndex, state.order.length),
+      currentPuzzleId:
+        nextIndex >= state.order.length ? null : state.order[nextIndex],
+      isFinished: nextIndex >= state.order.length
+    });
+  });
+
+  app.post("/puzzles/current/skip", async (req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    if (req.auth.team.isAdmin) {
+      return res.status(403).json({ ok: false, message: "Skip is only available to participant teams." });
+    }
+
+    if (!eventHasStarted(event)) {
+      return res.status(403).json({ ok: false, message: "Event has not started yet." });
+    }
+
+    if (getCompetitionSnapshot(event).isTimeUp) {
+      return res.status(423).json({ ok: false, message: "Time is up for this event." });
+    }
+
+    const state = await getTeamPuzzleState(prisma, {
+      teamId: req.auth.team.id,
+      event
+    });
+
+    if (!state.teamSet || !state.currentPuzzleId) {
+      return res.status(400).json({ ok: false, message: "No active puzzle is available to skip." });
+    }
+
+    const canSkip = await teamCanSkip(prisma, {
+      teamId: req.auth.team.id,
+      currentPuzzleId: state.currentPuzzleId,
+      event
+    });
+    if (!canSkip) {
+      return res.status(400).json({ ok: false, message: "Solved puzzles cannot be skipped. Use Next Puzzle instead." });
+    }
+
+    const skippedPuzzleId = state.currentPuzzleId;
+    const nextIndex = state.currentPuzzleIndex + 1;
+    const updated = await prisma.teamPuzzleSet.update({
+      where: { id: state.teamSet.id },
+      data: {
+        currentPuzzleIndex: nextIndex
+      }
+    });
+
+    await broadcastPublicSnapshot();
+
+    return res.json({
+      ok: true,
+      message:
+        nextIndex >= state.order.length
+          ? "Current puzzle skipped. No more assigned puzzles remain."
+          : "Current puzzle skipped. You cannot return to it.",
+      skippedPuzzleId,
+      currentPuzzleIndex: normalizeCurrentPuzzleIndex(updated.currentPuzzleIndex, state.order.length),
+      currentPuzzleId: nextIndex >= state.order.length ? null : state.order[nextIndex],
+      isFinished: nextIndex >= state.order.length
     });
   });
 
@@ -2905,18 +3351,42 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    const puzzleOrder = req.auth.team.isAdmin
-      ? (
-          await prisma.puzzle.findMany({
-            where: { eventId: event.id },
-            orderBy: { orderIndex: "asc" },
-            select: { id: true }
-          })
-        ).map((row) => row.id)
-      : await getTeamPuzzleOrder(prisma, {
+    const teamState = req.auth.team.isAdmin
+      ? {
+          order: (
+            await prisma.puzzle.findMany({
+              where: { eventId: event.id },
+              orderBy: { orderIndex: "asc" },
+              select: { id: true }
+            })
+          ).map((row) => row.id),
+          currentPuzzleId: null,
+          currentPuzzleIndex: 0,
+          isStarted: true,
+          isFinished: false
+        }
+      : await getTeamPuzzleState(prisma, {
           teamId: req.auth.team.id,
-          eventId: event.id
+          event
         });
+    const puzzleOrder = teamState.order;
+
+    if (!req.auth.team.isAdmin && !teamState.isStarted) {
+      return res.json(
+        ProgressResponseSchema.parse({
+          ok: true,
+          items: [],
+          currentPuzzleId: null,
+          currentPuzzleIndex: 0,
+          totalPuzzles: 0,
+          canAdvance: false,
+          canSkip: false,
+          isStarted: false,
+          isFinished: false
+        })
+      );
+    }
+
     const puzzles = await prisma.puzzle.findMany({
       where: {
         eventId: event.id,
@@ -2939,14 +3409,25 @@ export function createApp({ prisma, config }) {
 
     const solvedSet = new Set(solves.map((row) => row.puzzleId));
     const attemptedSet = new Set(attempts.map((row) => row.puzzleId));
-    const accessibleSet = req.auth.team.isAdmin ? new Set(puzzleOrder) : buildAccessiblePuzzleSet(puzzleOrder);
-
-    const puzzleOrderForProgress = req.auth.team.isAdmin
-      ? puzzleOrder.slice(0, TEAM_PUZZLE_COUNT)
-      : puzzleOrder;
+    const accessibleSet = req.auth.team.isAdmin
+      ? new Set(puzzleOrder)
+      : buildAccessiblePuzzleSet(teamState.currentPuzzleId);
+    const canAdvance = req.auth.team.isAdmin
+      ? false
+      : await teamCanAdvance(prisma, {
+          teamId: req.auth.team.id,
+          currentPuzzleId: teamState.currentPuzzleId,
+          event
+        });
+    const canSkip = req.auth.team.isAdmin
+      ? false
+      : await teamCanSkip(prisma, {
+          teamId: req.auth.team.id,
+          currentPuzzleId: teamState.currentPuzzleId,
+          event
+        });
 
     const items = orderedPuzzles
-      .filter((puzzle) => puzzleOrderForProgress.includes(puzzle.id))
       .map((puzzle) => ({
         puzzleId: puzzle.id,
         title: accessibleSet.has(puzzle.id) ? puzzle.title : "Locked Puzzle",
@@ -2957,13 +3438,16 @@ export function createApp({ prisma, config }) {
         })
       }));
 
-    if (items.length !== TEAM_PUZZLE_COUNT) {
-      return res.json({ ok: true, items });
-    }
-
     const payload = ProgressResponseSchema.parse({
       ok: true,
-      items
+      items,
+      currentPuzzleId: teamState.currentPuzzleId,
+      currentPuzzleIndex: teamState.currentPuzzleIndex,
+      totalPuzzles: puzzleOrder.length,
+      canAdvance,
+      canSkip,
+      isStarted: teamState.isStarted,
+      isFinished: teamState.isFinished
     });
 
     return res.json(payload);
@@ -2974,21 +3458,15 @@ export function createApp({ prisma, config }) {
 
   adminRouter.get("/teams/monitor", async (_req, res) => {
     const event = await getActiveEvent(prisma);
-    const eventPuzzles = event
-      ? await prisma.puzzle.findMany({
-          where: { eventId: event.id }
-        })
-      : [];
-    const puzzleTypeById = new Map(eventPuzzles.map((row) => [row.id, row.type]));
-
     const teams = await prisma.team.findMany({
       orderBy: { name: "asc" }
     });
     const now = new Date();
+    const startedAtMs = event?.startsAt ? new Date(event.startsAt).getTime() : null;
 
     const rows = await Promise.all(
       teams.map(async (team) => {
-        const [activeSessionCount, totalSessionCount, attemptCount, solvedRows, revealRows, lastSession] =
+        const [activeSessionCount, totalSessionCount, attemptCount, solvedRows, hintPenaltyPoints, lastSession] =
           await Promise.all([
             prisma.teamSession.count({
               where: {
@@ -3005,15 +3483,9 @@ export function createApp({ prisma, config }) {
             }),
             prisma.puzzleSolve.findMany({
               where: { teamId: team.id },
-              select: { puzzleId: true }
+              select: { puzzleId: true, solvedAt: true }
             }),
-            prisma.hintRevealAudit.findMany({
-              where: { teamId: team.id },
-              select: {
-                tier: true,
-                penaltySeconds: true
-              }
-            }),
+            getTeamPenaltyPoints(prisma, team.id),
             prisma.teamSession.findFirst({
               where: { teamId: team.id },
               orderBy: { createdAt: "desc" },
@@ -3026,11 +3498,11 @@ export function createApp({ prisma, config }) {
           ]);
 
         const solvedCount = solvedRows.length;
-        const totalPoints = calculateNetPoints({
-          solveRows: solvedRows,
-          puzzleTypeById,
-          revealRows
-        });
+        const lastCorrectAt = getLastSolvedAt(solvedRows);
+        const totalElapsedSeconds =
+          lastCorrectAt && startedAtMs !== null
+            ? Math.max(0, Math.floor((lastCorrectAt.getTime() - startedAtMs) / 1000))
+            : null;
 
         return {
           id: team.id,
@@ -3046,8 +3518,9 @@ export function createApp({ prisma, config }) {
           totalSessionCount,
           attemptCount,
           solvedCount,
-          totalPoints,
-          penaltiesPoints: sumHintPenaltyPoints(revealRows),
+          hintPenaltyPoints,
+          totalElapsedSeconds,
+          lastCorrectAt: lastCorrectAt ? lastCorrectAt.toISOString() : null,
           lastSession: lastSession
             ? {
                 createdAt: lastSession.createdAt.toISOString(),
@@ -3060,6 +3533,103 @@ export function createApp({ prisma, config }) {
     );
 
     return res.json({ ok: true, teams: rows });
+  });
+
+  adminRouter.patch("/event-settings", async (req, res) => {
+    const parsed = parseBody(AdminEventSettingsUpdateSchema, req.body);
+    if (!parsed.ok) {
+      return res.status(parsed.status).json({ ok: false, message: parsed.message });
+    }
+
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    if (eventHasStarted(event)) {
+      return res.status(409).json({ ok: false, message: "Event settings cannot be changed after the event starts." });
+    }
+
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: {
+        puzzleCount: parsed.data.puzzleCount
+      }
+    });
+
+    await appendAdminAudit(prisma, {
+      adminTeamId: req.auth.team.id,
+      action: "update_event_settings",
+      entityType: "event",
+      entityId: updated.id,
+      details: {
+        puzzleCount: updated.puzzleCount
+      }
+    });
+
+    await broadcastPublicSnapshot();
+
+    return res.json({
+      ok: true,
+      event: buildEventSummary(updated)
+    });
+  });
+
+  adminRouter.post("/event-start", async (req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    try {
+      const started = await startEventAssignments(event, req.auth.team.id);
+      return res.json({
+        ok: true,
+        event: buildEventSummary(started),
+        competition: buildPublicEventStatePayload(started).competition
+      });
+    } catch (error) {
+      return res.status(400).json({ ok: false, message: error.message || "Unable to start the event." });
+    }
+  });
+
+  adminRouter.post("/event-end", async (req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    if (!eventHasStarted(event)) {
+      return res.status(400).json({ ok: false, message: "Event has not started yet." });
+    }
+
+    const endedAt = new Date();
+    const updated = await prisma.event.update({
+      where: { id: event.id },
+      data: {
+        endsAt: endedAt,
+        isPaused: false,
+        pausedAt: null
+      }
+    });
+
+    await appendAdminAudit(prisma, {
+      adminTeamId: req.auth.team.id,
+      action: "end_event",
+      entityType: "event",
+      entityId: updated.id,
+      details: {
+        endedAt: endedAt.toISOString()
+      }
+    });
+
+    await broadcastPublicSnapshot();
+
+    return res.json({
+      ok: true,
+      event: buildEventSummary(updated),
+      competition: buildPublicEventStatePayload(updated).competition
+    });
   });
 
   adminRouter.post("/timer/pause-all", async (req, res) => {
@@ -3096,6 +3666,8 @@ export function createApp({ prisma, config }) {
         pausedAt: pausedAt.toISOString()
       }
     });
+
+    await broadcastPublicSnapshot();
 
     return res.json({
       ok: true,
@@ -3149,6 +3721,8 @@ export function createApp({ prisma, config }) {
       }
     });
 
+    await broadcastPublicSnapshot();
+
     return res.json({
       ok: true,
       eventId: updated.id,
@@ -3163,6 +3737,10 @@ export function createApp({ prisma, config }) {
     const event = await getActiveEvent(prisma);
     if (!event) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    if (eventHasStarted(event)) {
+      return res.status(409).json({ ok: false, message: "Timer reset is disabled after the event starts." });
     }
 
     const resetAt = new Date();
@@ -3190,6 +3768,8 @@ export function createApp({ prisma, config }) {
         endsAt: nextEndsAt.toISOString()
       }
     });
+
+    await broadcastPublicSnapshot();
 
     return res.json({
       ok: true,
@@ -3372,57 +3952,9 @@ export function createApp({ prisma, config }) {
   });
 
   adminRouter.post("/teams/:teamId/puzzle-pool", async (req, res) => {
-    const team = await prisma.team.findUnique({ where: { id: req.params.teamId } });
-    if (!team) {
-      return res.status(404).json({ ok: false, message: "Team not found." });
-    }
-
-    if (team.isAdmin) {
-      return res.status(400).json({ ok: false, message: "Admin teams do not use participant puzzle pools." });
-    }
-
-    const event = await getActiveEvent(prisma);
-    if (!event) {
-      return res.status(404).json({ ok: false, message: "No active event configured." });
-    }
-
-    const temporary = Boolean(req.body?.temporary);
-
-    let teamSet;
-    try {
-      teamSet = await assignTeamPuzzleSet(prisma, {
-        teamId: team.id,
-        eventId: event.id,
-        forceRegenerate: true,
-        temporary
-      });
-    } catch (error) {
-      return res.status(400).json({ ok: false, message: error.message });
-    }
-
-    await appendAdminAudit(prisma, {
-      adminTeamId: req.auth.team.id,
-      action: temporary ? "generate_temp_team_pool" : "generate_team_pool",
-      entityType: "team_puzzle_set",
-      entityId: teamSet.id,
-      details: {
-        teamId: team.id,
-        teamCode: team.code,
-        eventId: event.id,
-        temporary,
-        puzzleCount: Array.isArray(teamSet.puzzleOrder) ? teamSet.puzzleOrder.length : 0
-      }
-    });
-
-    return res.json({
-      ok: true,
-      team: {
-        id: team.id,
-        code: team.code,
-        name: team.name
-      },
-      temporary,
-      puzzleCount: Array.isArray(teamSet.puzzleOrder) ? teamSet.puzzleOrder.length : 0
+    return res.status(409).json({
+      ok: false,
+      message: "Manual team puzzle pool generation is disabled with frozen event orders."
     });
   });
 
@@ -3437,38 +3969,18 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
-    let puzzleOrder = [];
-    if (team.isAdmin) {
-      puzzleOrder = (
-        await prisma.puzzle.findMany({
-          where: { eventId: event.id },
-          orderBy: { orderIndex: "asc" },
-          select: { id: true }
-        })
-      )
-        .map((row) => row.id)
-        .slice(0, TEAM_PUZZLE_COUNT);
-    } else {
-      try {
-        puzzleOrder = await getTeamPuzzleOrder(prisma, {
+    const puzzleOrder = team.isAdmin
+      ? (
+          await prisma.puzzle.findMany({
+            where: { eventId: event.id },
+            orderBy: { orderIndex: "asc" },
+            select: { id: true }
+          })
+        ).map((row) => row.id)
+      : await getTeamPuzzleOrder(prisma, {
           teamId: team.id,
           eventId: event.id
         });
-      } catch (error) {
-        const canFallback = `${error?.message || ""}`.includes("Unable to assign a unique puzzle pool");
-        if (!canFallback) {
-          return res.status(400).json({ ok: false, message: error.message });
-        }
-
-        const teamSet = await assignTeamPuzzleSet(prisma, {
-          teamId: team.id,
-          eventId: event.id,
-          forceRegenerate: true,
-          temporary: true
-        });
-        puzzleOrder = normalizeOrder(teamSet.puzzleOrder, teamSet.puzzleOrder).slice(0, TEAM_PUZZLE_COUNT);
-      }
-    }
 
     const puzzles = await prisma.puzzle.findMany({
       where: {
@@ -3510,13 +4022,6 @@ export function createApp({ prisma, config }) {
       })
       .filter(Boolean);
 
-    const slugToId = new Map(puzzles.map((row) => [row.slug, row.id]));
-    const targetedPuzzleIds = await getTeamTargetedPuzzleIdsFromAudit(prisma, {
-      teamId: team.id,
-      poolPuzzleIds: puzzleOrder,
-      slugToId
-    });
-
     return res.json({
       ok: true,
       team: {
@@ -3526,77 +4031,14 @@ export function createApp({ prisma, config }) {
         isAdmin: team.isAdmin
       },
       items,
-      targetedItems: items.filter((item) => targetedPuzzleIds.has(item.puzzleId))
+      targetedItems: []
     });
   });
 
   adminRouter.post("/puzzles/:id/remove-from-team", async (req, res) => {
-    const teamId = `${req.body?.teamId || ""}`.trim();
-    if (!teamId) {
-      return res.status(400).json({ ok: false, message: "teamId is required." });
-    }
-
-    const event = await getActiveEvent(prisma);
-    if (!event) {
-      return res.status(404).json({ ok: false, message: "No active event configured." });
-    }
-
-    const [team, puzzle] = await Promise.all([
-      prisma.team.findUnique({ where: { id: teamId } }),
-      prisma.puzzle.findUnique({ where: { id: req.params.id } })
-    ]);
-
-    if (!team) {
-      return res.status(404).json({ ok: false, message: "Team not found." });
-    }
-
-    if (team.isAdmin) {
-      return res.status(400).json({ ok: false, message: "Cannot remove puzzles from admin team pools." });
-    }
-
-    if (!puzzle || puzzle.eventId !== event.id) {
-      return res.status(404).json({ ok: false, message: "Puzzle not found in active event." });
-    }
-
-    let teamSet;
-    try {
-      teamSet = await removePuzzleFromTeamPool(prisma, {
-        teamId: team.id,
-        eventId: event.id,
-        puzzleId: puzzle.id
-      });
-    } catch (error) {
-      return res.status(400).json({ ok: false, message: error.message });
-    }
-
-    await appendAdminAudit(prisma, {
-      adminTeamId: req.auth.team.id,
-      action: "remove_team_puzzle",
-      entityType: "team_puzzle_set",
-      entityId: teamSet.id,
-      details: {
-        teamId: team.id,
-        teamCode: team.code,
-        puzzleId: puzzle.id,
-        puzzleSlug: puzzle.slug,
-        puzzleTitle: puzzle.title,
-        resultingCount: Array.isArray(teamSet.puzzleOrder) ? teamSet.puzzleOrder.length : 0
-      }
-    });
-
-    return res.json({
-      ok: true,
-      team: {
-        id: team.id,
-        code: team.code,
-        name: team.name
-      },
-      puzzle: {
-        id: puzzle.id,
-        slug: puzzle.slug,
-        title: puzzle.title
-      },
-      puzzleCount: Array.isArray(teamSet.puzzleOrder) ? teamSet.puzzleOrder.length : 0
+    return res.status(409).json({
+      ok: false,
+      message: "Per-team puzzle removal is disabled with frozen event orders."
     });
   });
 
@@ -3639,6 +4081,10 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
+    if (eventHasStarted(event)) {
+      return res.status(409).json({ ok: false, message: "Puzzle bank import is disabled after the event starts." });
+    }
+
     const bank = readPuzzleBank();
     const importSummary = await prisma.$transaction(async (tx) => {
       let createdCount = 0;
@@ -3659,9 +4105,9 @@ export function createApp({ prisma, config }) {
           title: `${item.title}`,
           type: `${item.type}`,
           prompt: `${item.prompt}`,
-          answerKey: `${item.answerKey}`,
+          answerKey: normalizeAnswer(item.answerKey),
           orderIndex: index + 1,
-          hintPenaltySeconds: 60,
+          hintPenaltySeconds: 0,
           builtinUtils: Array.isArray(item.builtinUtils) ? item.builtinUtils : [],
           externalLinks: Array.isArray(item.externalLinks) ? item.externalLinks : [],
           isInspectPuzzle: Boolean(item.isInspectPuzzle),
@@ -3740,14 +4186,10 @@ export function createApp({ prisma, config }) {
 
       let targetTeam = null;
       if (parsed.data.targetTeamId) {
-        targetTeam = await prisma.team.findUnique({ where: { id: parsed.data.targetTeamId } });
-        if (!targetTeam) {
-          return res.status(404).json({ ok: false, message: "Target team not found." });
-        }
-
-        if (targetTeam.isAdmin) {
-          return res.status(400).json({ ok: false, message: "Cannot create participant puzzles for admin teams." });
-        }
+        return res.status(400).json({
+          ok: false,
+          message: "Team-specific puzzle assignment is not supported with frozen event orders."
+        });
       }
 
       const duplicate = await prisma.puzzle.findUnique({
@@ -3775,9 +4217,9 @@ export function createApp({ prisma, config }) {
             title: parsed.data.title,
             type: parsed.data.type,
             prompt: parsed.data.prompt,
-            answerKey: parsed.data.answerKey,
+            answerKey: normalizeAnswer(parsed.data.answerKey),
             orderIndex: nextOrderIndex,
-            hintPenaltySeconds: parsed.data.hintPenaltySeconds,
+            hintPenaltySeconds: 0,
             builtinUtils: parsed.data.builtinUtils,
             externalLinks: parsed.data.externalLinks,
             isInspectPuzzle: parsed.data.isInspectPuzzle,
@@ -3794,32 +4236,13 @@ export function createApp({ prisma, config }) {
           }))
         });
 
-        if (targetTeam) {
-          await addPuzzleToTeamPool(tx, {
-            teamId: targetTeam.id,
-            eventId: event.id,
-            puzzleId: puzzle.id
-          });
-          assignedTeamCount = 1;
-        } else {
-          const allTeams = await tx.team.findMany({
-            select: {
-              id: true,
-              isAdmin: true
-            }
-          });
-
-          const participantTeamIds = allTeams.filter((row) => !row.isAdmin).map((row) => row.id);
-          for (const participantTeamId of participantTeamIds) {
-            await addPuzzleToTeamPool(tx, {
-              teamId: participantTeamId,
-              eventId: event.id,
-              puzzleId: puzzle.id
-            });
+        const allTeams = await tx.team.findMany({
+          select: {
+            id: true,
+            isAdmin: true
           }
-
-          assignedTeamCount = participantTeamIds.length;
-        }
+        });
+        assignedTeamCount = allTeams.filter((row) => !row.isAdmin).length;
 
         return puzzle;
       });
@@ -3937,6 +4360,7 @@ export function createApp({ prisma, config }) {
     return {
       name: fileName,
       relativePath: parseTeamPrivateAssetPath(storedRelativePath).displayRelativePath || storedRelativePath,
+      storedRelativePath,
       mediaType: inferAssetMediaType(storedRelativePath),
       visibility: role === "solution" ? "validation" : targetTeam ? "team" : "shared",
       role,
@@ -4126,6 +4550,10 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "No active event configured." });
     }
 
+    if (eventHasStarted(event)) {
+      return res.status(409).json({ ok: false, message: "Deleting puzzles is disabled after the event starts." });
+    }
+
     const puzzle = await prisma.puzzle.findUnique({ where: { id: req.params.id } });
     if (!puzzle || puzzle.eventId !== event.id) {
       return res.status(404).json({ ok: false, message: "Puzzle not found in active event." });
@@ -4231,7 +4659,7 @@ export function createApp({ prisma, config }) {
       data.prompt = parsed.data.prompt;
     }
     if (parsed.data.answerKey !== undefined) {
-      data.answerKey = parsed.data.answerKey;
+      data.answerKey = normalizeAnswer(parsed.data.answerKey);
     }
 
     if (Object.keys(data).length === 0) {
@@ -4379,7 +4807,7 @@ export function createApp({ prisma, config }) {
 
     const updated = await prisma.puzzle.update({
       where: { id: req.params.id },
-      data: { hintPenaltySeconds: parsed.data.hintPenaltySeconds }
+      data: { hintPenaltySeconds: 0 }
     });
 
     await appendAdminAudit(prisma, {
@@ -4438,3 +4866,4 @@ export function createApp({ prisma, config }) {
 
   return app;
 }
+

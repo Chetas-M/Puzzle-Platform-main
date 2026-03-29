@@ -74,7 +74,9 @@ async function main() {
       name: "Puzzle Platform MVP Event",
       startsAt: startAt,
       endsAt: endAt,
-      isActive: true
+      isActive: true,
+      puzzleCount: 20,
+      wrongAnswerPenaltyMinutes: 0
     }
   });
 
@@ -103,9 +105,9 @@ async function main() {
         title: item.title,
         type: item.type,
         prompt: item.prompt,
-        answerKey: item.answerKey,
+        answerKey: `${item.answerKey || ""}`.trim().toUpperCase(),
         orderIndex: index + 1,
-        hintPenaltySeconds: 60,
+        hintPenaltySeconds: 0,
         builtinUtils: item.builtinUtils,
         externalLinks: item.externalLinks,
         isInspectPuzzle: item.isInspectPuzzle,
