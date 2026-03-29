@@ -118,10 +118,12 @@ function mapToolConfig(puzzle, { viewerTeamId = null, isAdmin = false } = {}) {
 }
 
 async function getActiveEvent(prisma) {
-  return prisma.event.findFirst({
+  const event = await prisma.event.findFirst({
     where: { isActive: true },
     orderBy: { createdAt: "desc" }
   });
+  
+  return event;
 }
 
 function hintPenaltyPointsForTier(tier) {
@@ -1051,6 +1053,28 @@ function generateUniqueTeamOrder(validIds, blockedSignatures) {
   throw new Error("Unable to generate a unique team puzzle order after multiple attempts.");
 }
 
+const PUZZLE_POINTS = {
+  "image cipher": 2,
+  "html inspect": 2,
+  "ascii art puzzle": 2,
+  "audio cipher": 3,
+  "progressive caesar cipher": 3,
+  "time-based otp": 1,
+  "book cipher": 2,
+  "reverse text puzzle": 1,
+  "fix the errors": 2,
+  "print statement maze": 2
+};
+
+function getPuzzlePoints(title) {
+  if (!title) return 1;
+  const lower = title.toLowerCase();
+  for (const [key, val] of Object.entries(PUZZLE_POINTS)) {
+    if (lower.includes(key)) return val;
+  }
+  return 1;
+}
+
 function getLastSolvedAt(solveRows) {
   return solveRows.reduce((latest, row) => {
     if (!row?.solvedAt) {
@@ -1074,38 +1098,65 @@ async function buildLeaderboardRows(prisma, event) {
   const participantTeams = teams.filter((team) => !team.isAdmin);
   const startedAtMs = event?.startsAt ? new Date(event.startsAt).getTime() : null;
 
-  const rows = await Promise.all(
-    participantTeams.map(async (team) => {
-      const [solveRows, hintPenaltyPoints] = await Promise.all([
-        prisma.puzzleSolve.findMany({
-          where: { teamId: team.id }
-        }),
-        getTeamPenaltyPoints(prisma, team.id)
-      ]);
+  const [allSolves, allReveals, allPuzzles] = await Promise.all([
+    prisma.puzzleSolve.findMany(),
+    prisma.hintRevealAudit.findMany(),
+    prisma.puzzle.findMany({ select: { id: true, title: true } })
+  ]);
 
-      const lastSolvedAt = getLastSolvedAt(solveRows);
-      const totalElapsedSeconds =
-        lastSolvedAt && startedAtMs !== null
-          ? Math.max(0, Math.floor((lastSolvedAt.getTime() - startedAtMs) / 1000))
-          : null;
+  const pointsById = new Map();
+  for (const p of allPuzzles) {
+    pointsById.set(p.id, getPuzzlePoints(p.title));
+  }
 
-      return {
-        team: {
-          id: team.id,
-          code: team.code,
-          name: team.name
-        },
-        solvedCount: solveRows.length,
-        hintPenaltyPoints,
-        totalElapsedSeconds,
-        lastCorrectAt: lastSolvedAt ? lastSolvedAt.toISOString() : null
-      };
-    })
-  );
+  const solvesByTeamId = new Map();
+  for (const solve of allSolves) {
+    if (!solvesByTeamId.has(solve.teamId)) {
+      solvesByTeamId.set(solve.teamId, []);
+    }
+    solvesByTeamId.get(solve.teamId).push(solve);
+  }
+
+  const revealsByTeamId = new Map();
+  for (const reveal of allReveals) {
+    if (!revealsByTeamId.has(reveal.teamId)) {
+      revealsByTeamId.set(reveal.teamId, []);
+    }
+    revealsByTeamId.get(reveal.teamId).push(reveal);
+  }
+
+  const rows = participantTeams.map((team) => {
+    const solveRows = solvesByTeamId.get(team.id) || [];
+    const revealRows = revealsByTeamId.get(team.id) || [];
+    const hintPenaltyPoints = sumHintPenaltyPoints(revealRows);
+
+    let points = 0;
+    for (const solve of solveRows) {
+      points += pointsById.get(solve.puzzleId) || 1;
+    }
+
+    const lastSolvedAt = getLastSolvedAt(solveRows);
+    const totalElapsedSeconds =
+      lastSolvedAt && startedAtMs !== null
+        ? Math.max(0, Math.floor((lastSolvedAt.getTime() - startedAtMs) / 1000))
+        : null;
+
+    return {
+      team: {
+        id: team.id,
+        code: team.code,
+        name: team.name
+      },
+      points,
+      hintPenaltyPoints,
+      totalElapsedSeconds,
+      lastCorrectAt: lastSolvedAt ? lastSolvedAt.toISOString() : null
+    };
+  });
 
   rows.sort((left, right) => {
-    if (right.solvedCount !== left.solvedCount) {
-      return right.solvedCount - left.solvedCount;
+    if (right.points !== left.points) {
+      return right.points - left.points;
     }
 
     if (left.hintPenaltyPoints !== right.hintPenaltyPoints) {
@@ -3464,6 +3515,12 @@ export function createApp({ prisma, config }) {
     const now = new Date();
     const startedAtMs = event?.startsAt ? new Date(event.startsAt).getTime() : null;
 
+    const allPuzzles = await prisma.puzzle.findMany({ select: { id: true, title: true } });
+    const pointsById = new Map();
+    for (const p of allPuzzles) {
+      pointsById.set(p.id, getPuzzlePoints(p.title));
+    }
+
     const rows = await Promise.all(
       teams.map(async (team) => {
         const [activeSessionCount, totalSessionCount, attemptCount, solvedRows, hintPenaltyPoints, lastSession] =
@@ -3497,7 +3554,10 @@ export function createApp({ prisma, config }) {
             })
           ]);
 
-        const solvedCount = solvedRows.length;
+        let points = 0;
+        for (const solve of solvedRows) {
+          points += pointsById.get(solve.puzzleId) || 1;
+        }
         const lastCorrectAt = getLastSolvedAt(solvedRows);
         const totalElapsedSeconds =
           lastCorrectAt && startedAtMs !== null
@@ -3517,7 +3577,7 @@ export function createApp({ prisma, config }) {
           activeSessionCount,
           totalSessionCount,
           attemptCount,
-          solvedCount,
+          points,
           hintPenaltyPoints,
           totalElapsedSeconds,
           lastCorrectAt: lastCorrectAt ? lastCorrectAt.toISOString() : null,
@@ -3780,6 +3840,56 @@ export function createApp({ prisma, config }) {
       endsAt: updated.endsAt.toISOString(),
       durationSeconds
     });
+  });
+
+  adminRouter.post("/event-reset", async (req, res) => {
+    const event = await getActiveEvent(prisma);
+    if (!event) {
+      return res.status(404).json({ ok: false, message: "No active event configured." });
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.puzzleSolve.deleteMany({});
+        await tx.puzzleAttempt.deleteMany({});
+        await tx.hintRevealAudit.deleteMany({});
+        await tx.notepad.deleteMany({});
+        await tx.clipboardEntry.deleteMany({});
+        await tx.antiCheatWarning.deleteMany({});
+        await tx.teamPuzzleSet.deleteMany({ where: { eventId: event.id } });
+
+        const resetAt = new Date();
+        const durationSeconds = Math.max(60, Number(config.EVENT_DURATION_SECONDS || 3600));
+        const nextEndsAt = new Date(resetAt.getTime() + durationSeconds * 1000);
+
+        await tx.event.update({
+          where: { id: event.id },
+          data: {
+            startedAt: null,
+            startsAt: resetAt,
+            endsAt: nextEndsAt,
+            isPaused: false,
+            pausedAt: null,
+            frozenPuzzleIds: null
+          }
+        });
+      });
+
+      await appendAdminAudit(prisma, {
+        adminTeamId: req.auth.team.id,
+        action: "factory_reset_event",
+        entityType: "event",
+        entityId: event.id,
+        details: { resetAt: new Date().toISOString() }
+      });
+
+      clearLeaderboardCache();
+      await broadcastPublicSnapshot();
+
+      return res.json({ ok: true, message: "Event successfully factory reset." });
+    } catch (error) {
+      return res.status(500).json({ ok: false, message: "Unable to factory reset event: " + error.message });
+    }
   });
 
   adminRouter.post("/teams/ban-all", async (req, res) => {
