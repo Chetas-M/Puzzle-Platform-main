@@ -33,8 +33,8 @@ function createMockPrisma() {
       {
         id: "event_1",
         name: "Test Event",
-        startsAt: new Date("2026-03-28T10:00:00.000Z"),
-        endsAt: new Date("2026-03-28T11:00:00.000Z"),
+        startsAt: new Date(),
+        endsAt: new Date(Date.now() + 60 * 60 * 1000),
         startedAt: null,
         puzzleCount: 20,
         wrongAnswerPenaltyMinutes: 0,
@@ -963,7 +963,7 @@ test("public leaderboard is unauthenticated and ranks by solved count, then hint
     leaderboard.body.leaderboard.slice(0, 3).map((row) => row.team.code),
     ["TEAM03", "TEAM02", "TEAM01"]
   );
-  assert.equal(leaderboard.body.leaderboard[0].solvedCount, 2);
+  assert.equal(leaderboard.body.leaderboard[0].points, 2);
   assert.equal(leaderboard.body.leaderboard[0].hintPenaltyPoints, 0);
   assert.equal(leaderboard.body.leaderboard[1].totalElapsedSeconds, 80);
   assert.equal(leaderboard.body.leaderboard[2].hintPenaltyPoints, 1);

@@ -205,7 +205,7 @@ export const PuzzleSubmitResponseSchema = z.object({
 export const LeaderboardEntrySchema = z.object({
   rank: z.number().int().positive(),
   team: TeamSummarySchema,
-  solvedCount: z.number().int().nonnegative(),
+  points: z.number().int().nonnegative(),
   hintPenaltyPoints: z.number().int().nonnegative(),
   totalElapsedSeconds: z.number().int().nonnegative().nullable(),
   lastCorrectAt: z.string().nullable()
