@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="A perfectly ordinary webpage about the weather.">
+  <meta name="author" content="Professor E. Nightingale">
+  <meta name="keywords" content="weather, forecast, sunny, clouds">
+  <meta name="secret-code" content="CIPHER">
+  <meta name="puzzle-hint" content="The answer is hidden in the head, not the body.">
+  <title>Puzzle 3: Daily Weather Report</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;700&display=swap');
+    body { margin: 0; font-family: 'IBM Plex Sans', sans-serif; background: #e8f4fd; color: #1a2b3c; }
+    .container { max-width: 680px; margin: 60px auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 4px 24px rgba(0,80,160,0.1); }
+    h1 { font-size: 1.8rem; }
+    .weather-icon { font-size: 5rem; text-align: center; margin: 20px 0; }
+    .temp { font-size: 3rem; font-family: 'IBM Plex Mono', monospace; text-align:center; color: #0055cc; }
+    p { line-height: 1.7; color: #445; }
+    .report { background: #f0f7ff; border-left: 4px solid #0055cc; padding: 16px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📡 Daily Weather Report</h1>
+    <div class="weather-icon">⛅</div>
+    <div class="temp">24°C</div>
+    <p>Today's report from the Northgate Meteorological Station. Partly cloudy skies are expected throughout the day with a gentle southwesterly breeze.</p>
+    <div class="report">
+      STATION ID: NMS-4471<br>
+      VISIBILITY: MODERATE<br>
+      HUMIDITY: 68%<br>
+      WIND: 12 km/h SW
+    </div>
+    <p>Nothing unusual to report. The professor's instrument readings are perfectly normal today.</p>
+    <!-- The real data is in the HEAD of this document, not the body. -->
+    <!-- Look at the meta tags. One of them is not like the others. -->
+  </div>
+</body>
+</html>

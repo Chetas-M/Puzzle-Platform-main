@@ -1,0 +1,22 @@
+
+Audio Morse Cipher - Beginner Guide
+
+
+What is Morse code?
+- Morse uses dots (.) and dashes (-). Each letter is a sequence of dots & dashes.
+
+
+
+How to decode (beginner, using only your ears):
+1. Play .wav file 
+2. Listen: short beep = dot (.), long beep = dash (-).
+3. Convert the sequence of dots/dashes into letters using the Morse table (morse_table.txt).
+
+
+How to decode (visual method using Tools - recommended):
+1. Open .wav file in provided external tools link
+2. Zoom into the waveform: you'll see short and long pulses. Measure durations to identify dot vs dash.
+3. Translate pulses to dots/dashes and then to letters.
+
+
+Good luck!

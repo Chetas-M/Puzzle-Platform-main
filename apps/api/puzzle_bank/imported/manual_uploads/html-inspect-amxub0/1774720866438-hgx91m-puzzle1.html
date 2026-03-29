@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Puzzle 1: The Lost Expedition</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora&display=swap');
+    body {
+      margin: 0; font-family: 'Lora', serif;
+      background: #1a0a00;
+      color: #d4a96a;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .journal {
+      max-width: 660px; width: 90%;
+      background: #2c1800;
+      border: 2px solid #5a3a1a;
+      border-radius: 4px;
+      padding: 40px;
+      box-shadow: 0 0 40px rgba(200,120,0,0.2);
+    }
+    h1 { font-family: 'Playfair Display', serif; font-size: 2rem; color: #e8c87a; text-align:center; }
+    p { line-height: 1.8; font-size: 1.05rem; }
+    .stamp { text-align: center; font-size: 2.5rem; margin: 20px 0; opacity: 0.5; }
+    /* CLUE_A: First word: DRAGON */
+  </style>
+</head>
+<body>
+  <div class="journal">
+    <div class="stamp">🗺️</div>
+    <h1>The Lost Expedition</h1>
+    <p>The explorer's journal lay open, its pages yellowed by time. She had vanished before completing her final entry.</p>
+    <p>Something was hidden — a single word that would unlock the vault. The journal held three fragments.</p>
+    <p>Find all three, combine them in order, and the truth will be revealed.</p>
+    <!-- FRAGMENT_1: DRAGON -->
+    <!-- Look for the second piece somewhere invisible to the eye -->
+    <div style="display:none" id="frag2">FRAGMENT_2: FIRE</div>
+    <!-- FRAGMENT_3: FLY -->
+    <!-- Combine all three: DRAGONFLY -->
+  </div>
+</body>
+</html>

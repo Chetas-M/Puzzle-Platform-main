@@ -1,0 +1,18 @@
+ARROW ASCII ART — Hidden Word
+================================================================================
+(Use a monospace font. The shapes formed by the arrow/caret symbols read as letters.)
+
+   ^^^   ^^^     >>>>>>>     %%%       %%%
+   ^^^   ^^^     >>>         %%%       %%%
+   ^^^   ^^^     >>>         %%%       %%%
+   ^^^^^^^^^     >>>>>       %%%%%%%%%%%
+   ^^^   ^^^     >>>         %%%       %%%
+   ^^^   ^^^     >>>         %%%       %%%
+   ^^^   ^^^     >>>>>>>     %%%       %%%
+
+================================================================================
+Hint: Each unique symbol (^ > %) outlines one or more letters. Read left to right.
+      The ^ block forms one letter. The > block forms one letter.
+      The % block appears TWICE — each forms a separate letter (same shape!).
+Final key format to submit:  `ARRKEY: <WORD>`  (example: `ARRKEY: JUMP`)
+================================================================================
