@@ -1226,6 +1226,32 @@ export default function AdminPage() {
     }
   };
 
+  const factoryResetEvent = async () => {
+    if (saving) return;
+
+    const msg = "DANGER: This will permanently wipe ALL team solves, attempts, hint penalties, and randomized puzzle paths! Are you absolutely sure?";
+    if (!window.confirm(msg)) {
+      return;
+    }
+    
+    if (!window.confirm("FINAL WARNING: All event progress will be destroyed and the event will be un-started. Proceed?")) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setFeedback("");
+    try {
+      const resp = await api.post("/admin/event-reset");
+      setFeedback(resp.data?.message || "Event has been completely factory reset.");
+      await Promise.all([loadMonitoring(), loadAuditLogs()]);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to factory reset event.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetTimerAll = async () => {
     const confirmed = window.confirm("Reset the event timer for all teams to the default duration (60 minutes)?");
     if (!confirmed) {
@@ -2495,6 +2521,14 @@ export default function AdminPage() {
                   <button
                     type="button"
                     disabled={saving}
+                    onClick={factoryResetEvent}
+                    className="rounded-lg bg-red-700 px-3 py-1 text-xs font-bold text-white hover:bg-red-600 shadow-md shadow-red-900/50 disabled:opacity-50"
+                  >
+                    Factory Reset Event
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
                     onClick={banAllTeams}
                     className="rounded-lg border border-red-400/70 px-3 py-1 text-xs disabled:opacity-50"
                   >
@@ -2517,7 +2551,7 @@ export default function AdminPage() {
                     <tr className="text-muted">
                       <th className="pb-2">Team</th>
                       <th className="pb-2">Active Sessions</th>
-                      <th className="pb-2">Solved</th>
+                      <th className="pb-2">Points</th>
                       <th className="pb-2">Hint Penalty</th>
                       <th className="pb-2">Attempts</th>
                       <th className="pb-2">Total Time</th>
@@ -2534,7 +2568,7 @@ export default function AdminPage() {
                           <p className="text-[11px] text-muted">{row.code}</p>
                         </td>
                         <td className="py-2">{row.activeSessionCount}</td>
-                        <td className="py-2">{row.solvedCount}</td>
+                        <td className="py-2">{row.points}</td>
                         <td className="py-2">{row.hintPenaltyPoints ?? 0} pts</td>
                         <td className="py-2">{row.attemptCount}</td>
                         <td className="py-2">
@@ -2673,7 +2707,7 @@ export default function AdminPage() {
                       <section key={`leader-${entry.team.id}`} className="rounded-lg border border-slate-700/50 p-3 text-xs">
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-semibold">#{entry.rank} {entry.team.name}</p>
-                          <p className="text-emerald-300">{entry.solvedCount} solved</p>
+                          <p className="text-emerald-300">{entry.points} pts</p>
                         </div>
                         <p className="text-muted">
                           {entry.team.code} | Hint penalty: {entry.hintPenaltyPoints ?? 0} pts | Total time: {entry.totalElapsedSeconds !== null && entry.totalElapsedSeconds !== undefined ? `${Math.floor(entry.totalElapsedSeconds / 60)}m ${entry.totalElapsedSeconds % 60}s` : "--"}

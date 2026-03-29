@@ -70,7 +70,7 @@ export default function LeaderboardPage() {
           <p className="text-xs uppercase tracking-[0.25em] text-muted">Public Leaderboard</p>
           <h1 className="mt-2 font-display text-4xl">{eventState?.event?.name || "Puzzle Event"}</h1>
           <p className="mt-2 text-sm text-muted">
-            Ranking: solved desc, hint penalty asc, total time asc.
+            Ranking: points desc, hint penalty asc, total time asc.
           </p>
         </header>
 
@@ -86,7 +86,7 @@ export default function LeaderboardPage() {
                   <tr className="border-b border-slate-700/40 text-sm text-muted">
                     <th className="px-4 py-3">Rank</th>
                     <th className="px-4 py-3">Team</th>
-                    <th className="px-4 py-3">Solved</th>
+                    <th className="px-4 py-3">Points</th>
                     <th className="px-4 py-3">Hint Penalty</th>
                     <th className="px-4 py-3">Total Time</th>
                     <th className="px-4 py-3">Last Correct</th>
@@ -100,7 +100,7 @@ export default function LeaderboardPage() {
                         <p className="font-semibold text-slate-100">{row.team.name}</p>
                         <p className="text-xs text-muted">{row.team.code}</p>
                       </td>
-                      <td className="px-4 py-4 text-lg font-semibold">{row.solvedCount}</td>
+                      <td className="px-4 py-4 text-lg font-semibold">{row.points}</td>
                       <td className="px-4 py-4">{row.hintPenaltyPoints} pts</td>
                       <td className="px-4 py-4">{formatDuration(row.totalElapsedSeconds)}</td>
                       <td className="px-4 py-4 text-xs text-muted">
