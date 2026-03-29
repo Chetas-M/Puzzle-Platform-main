@@ -26,3 +26,11 @@ Thumbs.db
 
 # Local temp artifacts
 tmp_admin_cookie.txt
+network-hosting.json
+start-api-network.ps1
+start-process-test.txt
+api-network-direct.log
+
+# Local/private puzzle assets
+apps/api/puzzle_bank/imported/manual_uploads/**/__team_private__/
+apps/api/puzzle_bank/imported/manual_uploads/**/solution-*
