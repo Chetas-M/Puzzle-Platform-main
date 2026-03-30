@@ -55,6 +55,7 @@ export default function PuzzlePage() {
   const [toolsCollapsed, setToolsCollapsed] = useState(true);
   const antiCheatCooldownRef = useRef({ tab_out: 0, window_blur: 0 });
   const externalBypassUntilRef = useRef(0);
+  const lastRefreshCoreRef = useRef(0);
   const previousStartedRef = useRef(false);
 
   const enforcement = eventState?.enforcement;
@@ -72,6 +73,9 @@ export default function PuzzlePage() {
   const isInputDisabled = isRestricted || isTimeUp || !isStarted || isFinished || !currentPuzzleId;
 
   const refreshCore = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastRefreshCoreRef.current < 2000) return;
+    lastRefreshCoreRef.current = now;
     const parsedEvent = EventStateResponseSchema.parse((await api.get("/event/state")).data);
     setEventState(parsedEvent);
     if (parsedEvent.enforcement?.isLocked || parsedEvent.enforcement?.isBanned || !parsedEvent.event?.isStarted) {
@@ -148,11 +152,10 @@ export default function PuzzlePage() {
     try {
       const response = await api.post("/anti-cheat/violation", { type, detail, puzzleId: selectedPuzzleId });
       if (response?.data?.message) setFeedback(response.data.message);
-      await refreshCore();
     } catch (requestError) {
       setFeedback(requestError?.response?.data?.message || "Unable to report warning.");
     }
-  }, [isRestricted, lifelineActive, refreshCore, selectedPuzzleId]);
+  }, [isRestricted, lifelineActive, selectedPuzzleId]);
 
   const activateLifeline = async () => {
     if (!selectedPuzzleId || isInputDisabled) {
@@ -214,7 +217,9 @@ export default function PuzzlePage() {
     source.addEventListener("snapshot", (event) => {
       handleSnapshot(event).catch(() => {});
     });
-    source.onerror = () => {};
+    source.onerror = () => {
+      setTimeout(() => { try { source.close(); } catch {} }, Math.random() * 3000 + 1000);
+    };
     return () => source.close();
   }, [apiBase, refreshCore]);
 
@@ -238,7 +243,7 @@ export default function PuzzlePage() {
     if (!selectedPuzzleId || isInputDisabled) return;
     const timeout = setTimeout(() => {
       api.post(`/puzzles/${selectedPuzzleId}/notepad`, { content: notepad }).then((response) => NotepadResponseSchema.parse(response.data)).catch(() => {});
-    }, 500);
+    }, 2000);
     return () => clearTimeout(timeout);
   }, [isInputDisabled, notepad, selectedPuzzleId]);
 
@@ -322,9 +327,10 @@ export default function PuzzlePage() {
   const selectedPuzzle = useMemo(() => puzzles.find((item) => item.id === selectedPuzzleId) || null, [puzzles, selectedPuzzleId]);
   const shouldShowInterpreter = useMemo(() => {
     if (!puzzleDetail) return false;
+    const type = `${puzzleDetail.type || ""}`.toLowerCase();
+    if (type === "fix_the_bug") return false;
     const builtins = puzzleDetail?.toolConfig?.builtinUtils || [];
     if (builtins.includes("codeWorkspace") || builtins.includes("pythonInterpreter") || builtins.includes("codeVerifier")) return true;
-    const type = `${puzzleDetail.type || ""}`.toLowerCase();
     if (["fix_errors", "code", "programming", "scripting"].includes(type)) return true;
     return assetItems.some((item) => `${item.name || ""}`.toLowerCase().endsWith(".py"));
   }, [assetItems, puzzleDetail]);
@@ -466,7 +472,71 @@ export default function PuzzlePage() {
 
                 {shouldShowInterpreter ? <CodeInterpreterPanel puzzleId={selectedPuzzleId} puzzleType={puzzleDetail?.type} toolConfig={puzzleDetail?.toolConfig} assetItems={assetItems} disabled={isInputDisabled || !selectedPuzzleId} onCheckSuccess={async () => { await refreshCore(); await refreshPuzzleDetail(); }} /> : null}
 
-                {!shouldShowInterpreter ? (
+                {!shouldShowInterpreter ? (() => {
+                  const isFixTheBug = `${puzzleDetail?.type || ""}`.toLowerCase() === "fix_the_bug";
+
+                  if (isFixTheBug) {
+                    return (
+                      <>
+                        {/* Download buggy code files */}
+                        {assetItems.length > 0 ? (
+                          <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-5">
+                            <h3 className="mb-2 font-semibold text-amber-200">🐛 Buggy Code Files</h3>
+                            <p className="mb-3 text-sm text-amber-100/70">Download the file(s) below, find and fix the bug, then run the corrected code.</p>
+                            <div className="flex flex-wrap gap-2">
+                              {assetItems.map((item) => {
+                                const href = `${apiBase}${item.url}`;
+                                const downloadFile = async (e) => {
+                                  e.preventDefault();
+                                  externalBypassUntilRef.current = Date.now() + 20000;
+                                  try {
+                                    const res = await fetch(href, { credentials: "include" });
+                                    const blob = await res.blob();
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = item.name || "download.py";
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    URL.revokeObjectURL(url);
+                                  } catch { setFeedback("Download failed."); }
+                                };
+                                return (
+                                  <button type="button" key={item.relativePath} onClick={downloadFile} className="inline-flex items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-950/40 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-900/50">
+                                    ⬇ Download {item.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        ) : null}
+
+                        {/* Run your code button */}
+                        <section className="rounded-2xl border border-violet-500/30 bg-violet-950/20 p-5">
+                          <h3 className="mb-2 font-semibold text-violet-200">▶ Run Your Code</h3>
+                          <p className="mb-3 text-sm text-violet-100/70">Open the online Python compiler to test your fixed code. Copy the output and paste it below.</p>
+                          <button type="button" onClick={() => { externalBypassUntilRef.current = Date.now() + 20000; window.open("https://www.programiz.com/python-programming/online-compiler/", "_blank", "noopener,noreferrer"); }} className="rounded-lg border border-violet-400/60 bg-violet-950/40 px-4 py-2 text-sm font-semibold text-violet-100 transition hover:bg-violet-900/50" disabled={isInputDisabled}>
+                            🖥 Open Online Compiler
+                          </button>
+                        </section>
+
+                        {/* Answer submission — multiline textarea */}
+                        <section className="rounded-2xl border border-slate-700/40 bg-card p-5">
+                          <h3 className="mb-2 font-semibold">Answer Submission</h3>
+                          <label className="mb-1 block text-sm text-muted" htmlFor="fix-bug-answer">Paste your output here</label>
+                          <textarea id="fix-bug-answer" className="h-32 w-full rounded-xl border border-slate-600 bg-slate-950/70 p-3 font-mono text-sm" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Paste all lines of output here..." disabled={isInputDisabled} spellCheck={false} />
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button type="button" className="rounded-xl bg-accent px-4 py-2 font-semibold text-slate-950 disabled:opacity-50" onClick={() => setShowConfirm(true)} disabled={!answer.trim() || isInputDisabled}>Submit Answer</button>
+                            {puzzleDetail?.progress?.canAdvance ? <button type="button" className="rounded-xl border border-emerald-400/70 px-4 py-2 font-semibold text-emerald-100 disabled:opacity-50" onClick={advanceToNextPuzzle} disabled={isInputDisabled}>Next Puzzle</button> : null}
+                            {puzzleDetail?.progress?.canSkip ? <button type="button" className="rounded-xl border border-rose-400/70 px-4 py-2 font-semibold text-rose-100 disabled:opacity-50" onClick={() => setShowSkipConfirm(true)} disabled={isInputDisabled}>Skip Puzzle</button> : null}
+                          </div>
+                        </section>
+                      </>
+                    );
+                  }
+
+                  return (
                   <section className="rounded-2xl border border-slate-700/40 bg-card p-5">
                     <h3 className="mb-2 font-semibold">Answer Submission</h3>
                     <textarea className="h-24 w-full rounded-xl border border-slate-600 bg-slate-950/70 p-3 uppercase" value={answer} onChange={(event) => setAnswer(event.target.value.toUpperCase())} placeholder="Enter final answer" disabled={isInputDisabled} autoCapitalize="characters" spellCheck={false} />
@@ -476,7 +546,8 @@ export default function PuzzlePage() {
                       {puzzleDetail?.progress?.canSkip ? <button type="button" className="rounded-xl border border-rose-400/70 px-4 py-2 font-semibold text-rose-100 disabled:opacity-50" onClick={() => setShowSkipConfirm(true)} disabled={isInputDisabled}>Skip Puzzle</button> : null}
                     </div>
                   </section>
-                ) : null}
+                  );
+                })() : null}
               </section>
 
               <aside className="space-y-4">

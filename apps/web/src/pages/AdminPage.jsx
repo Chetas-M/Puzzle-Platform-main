@@ -224,6 +224,26 @@ const PUZZLE_BASE_CONFIGS = {
     readmeFileName: "README_PRINT_STATEMENT_MAZE.txt",
     readmeContent:
       "PRINT STATEMENT MAZE BASE INSTRUCTIONS\n\n1. Follow the trace/print outputs carefully.\n2. Build the valid route sequence step-by-step.\n3. Eliminate paths that violate maze constraints.\n4. Submit final move sequence exactly." 
+  },
+  fixTheBug: {
+    key: "fixTheBug",
+    label: "Fix the Bug",
+    slugPrefix: "fix-the-bug",
+    titlePrefix: "Fix the Bug",
+    type: "fix_the_bug",
+    prompt:
+      "Download the buggy Python code below, find and fix the bug(s), run the corrected code in the online compiler, and paste the exact program output as your answer.",
+    answerKeyPlaceholder: "SET_ME",
+    hintPenaltySeconds: 0,
+    builtinUtils: [],
+    hints: {
+      tier1: { content: "Read the code line by line \u2014 the bug is in the logic, not just syntax.", penaltySeconds: 0 },
+      tier2: { content: "Pay attention to loop boundaries and variable assignments.", penaltySeconds: 1 },
+      tier3: { content: "Run the original code first to see what the wrong output looks like, then compare.", penaltySeconds: 2 }
+    },
+    readmeFileName: "README_FIX_THE_BUG.txt",
+    readmeContent:
+      "FIX THE BUG BASE INSTRUCTIONS\n\n1. Download the attached buggy Python code file.\n2. Read the code and identify the bug(s).\n3. Fix the code and run it using the online compiler (Programiz).\n4. Copy the exact output and paste it into the answer field.\n5. Submit your answer."
   }
 };
 
@@ -1640,11 +1660,12 @@ export default function AdminPage() {
               </label>
               <label className="text-sm">
                 <span className="mb-1 block">Answer Key</span>
-                <input
-                  className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2"
+                <textarea
+                  className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2 font-mono text-sm"
+                  rows={3}
                   value={createDraft.answerKey}
                   onChange={(event) => setCreateDraft((prev) => ({ ...prev, answerKey: event.target.value }))}
-                  placeholder="FLAG{example}"
+                  placeholder="FLAG{example} or paste multi-line output"
                 />
               </label>
             </div>
@@ -1993,8 +2014,9 @@ export default function AdminPage() {
                     </label>
                     <label className="text-sm">
                       <span className="mb-1 block">New Answer Key (optional)</span>
-                      <input
-                        className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2"
+                      <textarea
+                        className="w-full rounded-lg border border-slate-600 bg-slate-950/70 px-3 py-2 font-mono text-sm"
+                        rows={3}
                         value={metadataDraft.answerKey}
                         onChange={(event) => setMetadataDraft((prev) => ({ ...prev, answerKey: event.target.value }))}
                         placeholder="Leave empty to keep existing"

@@ -58,7 +58,8 @@ export default function CodeInterpreterPanel({
   puzzleType,
   toolConfig,
   assetItems = [],
-  disabled = false
+  disabled = false,
+  onCheckSuccess
 }) {
   const referenceAssets = useMemo(() => {
     const rows = assetItems
@@ -209,6 +210,10 @@ export default function CodeInterpreterPanel({
       });
 
       setCheckMessage(checkResult?.message || "Verification completed.");
+
+      if (checkResult?.isCorrect) {
+        onCheckSuccess?.();
+      }
     } catch (requestError) {
       setCheckMessage(requestError?.response?.data?.message || "Unable to run and check answer.");
     } finally {
