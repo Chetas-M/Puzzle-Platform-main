@@ -313,7 +313,7 @@ export default function ParticipantPage() {
             <article className="card stat-card">
               <p className="label">Access Level</p>
               <h2 style={{ color: lockEnforced ? 'var(--accent-primary)' : 'var(--accent-primary)' }}>
-                {lockEnforced ? "Standard" : `Unlocked (${formatTime(lifelineRemainingSeconds)})`}
+                {lockEnforced ? "Standard" : "Unlocked"}
               </h2>
             </article>
             <article className="card stat-card">
@@ -394,7 +394,7 @@ export default function ParticipantPage() {
                   onClick={activateLifeline}
                   disabled={(status?.lifeline?.lifeline_remaining || 0) <= 0 || !lockEnforced}
                 >
-                  Unlock Temporarily (60s)
+                  Unlock For Puzzle
                 </button>
                 <button
                   className="btn btn-muted"

@@ -43,7 +43,6 @@ const MIN_EVENT_PUZZLE_COUNT = 20;
 const MAX_EVENT_PUZZLE_COUNT = 26;
 const PUBLIC_STREAM_TICK_MS = 1000;
 const ADMIN_ASSET_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
-const LIFELINE_DURATION_MS = 5 * 60 * 1000;
 const CODE_CHECKER_FILE_TOKENS = ["solution", "organizer_solution", "verifier", "correct", "answer"];
 
 const adminAssetUpload = multer({
@@ -101,7 +100,7 @@ function filterExternalLinksForViewer(externalLinks, { viewerTeamId = null, isAd
       return true;
     }
 
-    return canTeamViewAsset(assetRelativePath, { viewerTeamId, isAdmin });
+    return (isAdmin || isParticipantVisibleAsset(assetRelativePath)) && canTeamViewAsset(assetRelativePath, { viewerTeamId, isAdmin });
   });
 }
 
@@ -904,7 +903,8 @@ function enforcementPayloadForTeam(team, config, lifeline = null) {
     lifelineActive,
     lifelineExpiresAt: lifelineActive ? new Date(lifeline.expiresAtMs).toISOString() : null,
     lifelineRemainingSeconds,
-    lifelinePuzzleId: lifelineActive ? lifeline.puzzleId : null
+    lifelinePuzzleId: lifelineActive ? lifeline.puzzleId : null,
+    lifelinesRemaining: Math.max(0, 2 - (team?.lifelinesUsed || 0))
   };
 }
 
@@ -1961,7 +1961,7 @@ export function createApp({ prisma, config }) {
       teamId: `${teamId}`,
       puzzleId: `${puzzleId}`,
       activatedAtMs: nowMs,
-      expiresAtMs: nowMs + LIFELINE_DURATION_MS
+      expiresAtMs: nowMs + 31536000000 // 1 year (infinite for event duration)
     };
     activeLifelines.set(`${teamId}`, next);
     return next;
@@ -2225,6 +2225,16 @@ export function createApp({ prisma, config }) {
       return res.status(403).json({ ok: false, message: "Lifeline can only be activated for the current puzzle." });
     }
 
+    if ((req.auth.team.lifelinesUsed || 0) >= 2) {
+      return res.status(403).json({ ok: false, message: "Lifeline limit reached (maximum 2 per event)." });
+    }
+
+    await prisma.team.update({
+      where: { id: req.auth.team.id },
+      data: { lifelinesUsed: { increment: 1 } }
+    });
+    req.auth.team.lifelinesUsed = (req.auth.team.lifelinesUsed || 0) + 1;
+
     const lifeline = activateLifeline({
       teamId: req.auth.team.id,
       puzzleId: puzzle.id
@@ -2232,7 +2242,7 @@ export function createApp({ prisma, config }) {
 
     return res.json({
       ok: true,
-      message: "Lifeline activated for 5 minutes. Anti-cheat is bypassed until time expires or puzzle is switched.",
+      message: "Lifeline activated. Anti-cheat is bypassed until puzzle is switched.",
       enforcement: enforcementPayloadForTeam(req.auth.team, config, lifeline)
     });
   });
@@ -2878,6 +2888,46 @@ export function createApp({ prisma, config }) {
     const expectedNormalized = normalizeAnswer(checkerResult.stdout || "");
     const isCorrect = candidateNormalized === expectedNormalized;
 
+    if (isCorrect && !req.auth.team.isAdmin) {
+      const lockKey = `${req.auth.team.id}:${puzzle.id}`;
+      if (!SUBMISSION_LOCKS.has(lockKey)) {
+        SUBMISSION_LOCKS.add(lockKey);
+        try {
+          const existingSolve = await prisma.puzzleSolve.findUnique({
+            where: {
+              teamId_puzzleId: {
+                teamId: req.auth.team.id,
+                puzzleId: puzzle.id
+              }
+            }
+          });
+
+          if (!existingSolve) {
+            const attempt = await prisma.puzzleAttempt.create({
+              data: {
+                teamId: req.auth.team.id,
+                puzzleId: puzzle.id,
+                answer: "CODE_INTERPRETER_VERIFY",
+                isCorrect: true
+              }
+            });
+
+            await prisma.puzzleSolve.create({
+              data: {
+                teamId: req.auth.team.id,
+                puzzleId: puzzle.id,
+                firstAttemptId: attempt.id
+              }
+            });
+            clearLeaderboardCache();
+            await broadcastPublicSnapshot();
+          }
+        } finally {
+          SUBMISSION_LOCKS.delete(lockKey);
+        }
+      }
+    }
+
     return res.json({
       ok: true,
       language,
@@ -3321,6 +3371,7 @@ export function createApp({ prisma, config }) {
       }
     });
 
+    clearLifeline(req.auth.team.id);
     await broadcastPublicSnapshot();
 
     return res.json({
@@ -3381,6 +3432,7 @@ export function createApp({ prisma, config }) {
       }
     });
 
+    clearLifeline(req.auth.team.id);
     await broadcastPublicSnapshot();
 
     return res.json({
@@ -3873,7 +3925,13 @@ export function createApp({ prisma, config }) {
             frozenPuzzleIds: null
           }
         });
+
+        await tx.team.updateMany({
+          data: { lifelinesUsed: 0 }
+        });
       });
+
+      activeLifelines.clear();
 
       await appendAdminAudit(prisma, {
         adminTeamId: req.auth.team.id,

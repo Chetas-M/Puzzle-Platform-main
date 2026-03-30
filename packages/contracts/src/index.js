@@ -84,7 +84,8 @@ export const EventStateResponseSchema = z.object({
     lifelineActive: z.boolean().default(false),
     lifelineExpiresAt: z.string().nullable().default(null),
     lifelineRemainingSeconds: z.number().int().nonnegative().default(0),
-    lifelinePuzzleId: z.string().nullable().default(null)
+    lifelinePuzzleId: z.string().nullable().default(null),
+    lifelinesRemaining: z.number().int().nonnegative().default(2)
   }),
   now: z.string()
 });

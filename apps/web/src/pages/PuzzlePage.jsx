@@ -416,15 +416,15 @@ export default function PuzzlePage() {
         {feedback ? <p className="mb-3 rounded-lg bg-sky-950/40 p-3 text-sm text-sky-200">{feedback}</p> : null}
         <p className={`mb-3 rounded-lg p-3 text-sm ${isRestricted ? "bg-red-950/40 text-red-300" : "bg-amber-950/30 text-amber-200"}`}>
           Anti-cheat warnings: {warnings}/{maxWarnings}
-          {isBanned ? " - Team is banned by admin." : lifelineActive ? ` - Lifeline active (${lifelineRemainingSeconds}s left). Anti-cheat is bypassed.` : isLocked ? " - Team is locked for this event." : " - Tab switching/window blur issues warnings."}
+          {isBanned ? " - Team is banned by admin." : lifelineActive ? " - Lifeline active. Anti-cheat is bypassed for this puzzle." : isLocked ? " - Team is locked for this event." : " - Tab switching/window blur issues warnings."}
         </p>
 
         {!isStarted ? <section className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-6 text-center"><h2 className="font-display text-2xl text-cyan-100">Waiting For Event Start</h2><p className="mt-2 text-sm text-cyan-100/80">Your team is registered. The puzzle set and timer will appear here as soon as the admin starts the event.</p></section> : null}
         {isStarted ? (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={activateLifeline} disabled={isInputDisabled || lifelineActive} className="rounded-lg border border-cyan-400/70 px-3 py-2 text-sm disabled:opacity-50">{lifelineActive ? "Lifeline Active" : "Use Lifeline (5 min)"}</button>
-              <p className="text-xs text-muted">Lifeline disables anti-cheat for 5 minutes and ends immediately when you switch puzzles.</p>
+              <button type="button" onClick={activateLifeline} disabled={isInputDisabled || lifelineActive || enforcement?.lifelinesRemaining <= 0} className="rounded-lg border border-cyan-400/70 px-3 py-2 text-sm disabled:opacity-50">{lifelineActive ? "Lifeline Active" : `Use Lifeline (${enforcement?.lifelinesRemaining || 0} remaining)`}</button>
+              <p className="text-xs text-muted">Lifeline disables anti-cheat and ends immediately when you switch or complete puzzles.</p>
             </div>
 
             <ProgressTracker items={progress} selectedPuzzleId={selectedPuzzleId} enabledPuzzleIds={currentPuzzleId ? [currentPuzzleId] : []} onSelect={() => {}} />
@@ -464,17 +464,19 @@ export default function PuzzlePage() {
                   {toolsCollapsed || !puzzleDetail || !hasConfiguredTools || isInputDisabled ? null : <ToolsPanel toolConfig={puzzleDetail.toolConfig} onCopy={(value, source) => pushClipboard(value, source)} onExternalLaunch={handleExternalLaunch} />}
                 </section>
 
-                {shouldShowInterpreter ? <CodeInterpreterPanel puzzleId={selectedPuzzleId} puzzleType={puzzleDetail?.type} toolConfig={puzzleDetail?.toolConfig} assetItems={assetItems} disabled={isInputDisabled || !selectedPuzzleId} /> : null}
+                {shouldShowInterpreter ? <CodeInterpreterPanel puzzleId={selectedPuzzleId} puzzleType={puzzleDetail?.type} toolConfig={puzzleDetail?.toolConfig} assetItems={assetItems} disabled={isInputDisabled || !selectedPuzzleId} onCheckSuccess={async () => { await refreshCore(); await refreshPuzzleDetail(); }} /> : null}
 
-                <section className="rounded-2xl border border-slate-700/40 bg-card p-5">
-                  <h3 className="mb-2 font-semibold">Answer Submission</h3>
-                  <textarea className="h-24 w-full rounded-xl border border-slate-600 bg-slate-950/70 p-3 uppercase" value={answer} onChange={(event) => setAnswer(event.target.value.toUpperCase())} placeholder="Enter final answer" disabled={isInputDisabled} autoCapitalize="characters" spellCheck={false} />
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button type="button" className="rounded-xl bg-accent px-4 py-2 font-semibold text-slate-950 disabled:opacity-50" onClick={() => setShowConfirm(true)} disabled={!answer.trim() || isInputDisabled}>Submit Answer</button>
-                    {puzzleDetail?.progress?.canAdvance ? <button type="button" className="rounded-xl border border-emerald-400/70 px-4 py-2 font-semibold text-emerald-100 disabled:opacity-50" onClick={advanceToNextPuzzle} disabled={isInputDisabled}>Next Puzzle</button> : null}
-                    {puzzleDetail?.progress?.canSkip ? <button type="button" className="rounded-xl border border-rose-400/70 px-4 py-2 font-semibold text-rose-100 disabled:opacity-50" onClick={() => setShowSkipConfirm(true)} disabled={isInputDisabled}>Skip Puzzle</button> : null}
-                  </div>
-                </section>
+                {!shouldShowInterpreter ? (
+                  <section className="rounded-2xl border border-slate-700/40 bg-card p-5">
+                    <h3 className="mb-2 font-semibold">Answer Submission</h3>
+                    <textarea className="h-24 w-full rounded-xl border border-slate-600 bg-slate-950/70 p-3 uppercase" value={answer} onChange={(event) => setAnswer(event.target.value.toUpperCase())} placeholder="Enter final answer" disabled={isInputDisabled} autoCapitalize="characters" spellCheck={false} />
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button type="button" className="rounded-xl bg-accent px-4 py-2 font-semibold text-slate-950 disabled:opacity-50" onClick={() => setShowConfirm(true)} disabled={!answer.trim() || isInputDisabled}>Submit Answer</button>
+                      {puzzleDetail?.progress?.canAdvance ? <button type="button" className="rounded-xl border border-emerald-400/70 px-4 py-2 font-semibold text-emerald-100 disabled:opacity-50" onClick={advanceToNextPuzzle} disabled={isInputDisabled}>Next Puzzle</button> : null}
+                      {puzzleDetail?.progress?.canSkip ? <button type="button" className="rounded-xl border border-rose-400/70 px-4 py-2 font-semibold text-rose-100 disabled:opacity-50" onClick={() => setShowSkipConfirm(true)} disabled={isInputDisabled}>Skip Puzzle</button> : null}
+                    </div>
+                  </section>
+                ) : null}
               </section>
 
               <aside className="space-y-4">

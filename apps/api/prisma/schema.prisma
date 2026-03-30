@@ -46,6 +46,7 @@ model Team {
   puzzleSets       TeamPuzzleSet[]
   adminAuditLogs   AdminAuditLog[]
   antiCheatWarnings AntiCheatWarning[]
+  lifelinesUsed    Int               @default(0)
 
   @@unique([code, name])
 }
