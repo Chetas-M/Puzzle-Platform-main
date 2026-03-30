@@ -6,8 +6,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated, isAdmin } = useAuth();
 
-  const [teamCode, setTeamCode] = useState("TEAM01");
-  const [teamName, setTeamName] = useState("Quantum Foxes");
+  const [teamCode, setTeamCode] = useState("");
+  const [teamName, setTeamName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +40,6 @@ export default function LoginPage() {
           <p className="text-xs uppercase tracking-[0.25em] text-muted">Puzzle Platform</p>
           <h1 className="mt-2 font-display text-3xl">Team Session Login</h1>
           <p className="mt-2 text-sm text-muted">Use your team code and registered team name.</p>
-          <p className="mt-1 text-xs text-muted">Admin seed login: ADMIN01 / Event Admin</p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <label className="block text-sm">
@@ -49,6 +48,7 @@ export default function LoginPage() {
                 className="w-full rounded-xl border border-slate-600 bg-slate-950/70 px-3 py-2"
                 value={teamCode}
                 onChange={(event) => setTeamCode(event.target.value)}
+                placeholder="Enter your team code"
               />
             </label>
             <label className="block text-sm">
@@ -57,6 +57,7 @@ export default function LoginPage() {
                 className="w-full rounded-xl border border-slate-600 bg-slate-950/70 px-3 py-2"
                 value={teamName}
                 onChange={(event) => setTeamName(event.target.value)}
+                placeholder="Enter your team name"
               />
             </label>
             {error ? <p className="text-sm text-red-300">{error}</p> : null}
@@ -66,17 +67,6 @@ export default function LoginPage() {
               className="w-full rounded-xl bg-accent px-4 py-2 font-semibold text-slate-950 disabled:opacity-50"
             >
               {loading ? "Starting..." : "Start Session"}
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => {
-                setTeamCode("ADMIN01");
-                setTeamName("Event Admin");
-              }}
-              className="w-full rounded-xl border border-slate-500 px-4 py-2 text-sm disabled:opacity-50"
-            >
-              Use Admin Seed Credentials
             </button>
           </form>
         </section>
