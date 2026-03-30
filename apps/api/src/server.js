@@ -4,8 +4,8 @@ import { prisma } from "./prisma.js";
 
 const app = createApp({ prisma, config });
 
-const server = app.listen(config.API_PORT, () => {
-  console.log(`MVP API listening on ${config.API_PORT}`);
+const server = app.listen(config.API_PORT, "0.0.0.0", () => {
+  console.log(`MVP API listening on 0.0.0.0:${config.API_PORT}`);
 });
 
 process.on("SIGINT", async () => {

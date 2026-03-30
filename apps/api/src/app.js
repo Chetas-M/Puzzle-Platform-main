@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import multer from "multer";
@@ -41,7 +42,7 @@ const TEAM_PUZZLE_COUNT = 10;
 const TEAM_POOL_MAX_ATTEMPTS = 500;
 const MIN_EVENT_PUZZLE_COUNT = 20;
 const MAX_EVENT_PUZZLE_COUNT = 26;
-const PUBLIC_STREAM_TICK_MS = 1000;
+const PUBLIC_STREAM_TICK_MS = 3000;
 const ADMIN_ASSET_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const CODE_CHECKER_FILE_TOKENS = ["solution", "organizer_solution", "verifier", "correct", "answer"];
 
@@ -1754,9 +1755,12 @@ function buildPublicEventStatePayload(event) {
 
 export function createApp({ prisma, config }) {
   const app = express();
+  app.use(compression());
   const allowedOrigins = getAllowedCorsOrigins(config);
   const activeLifelines = new Map();
   const publicStreamClients = new Set();
+  let sseBroadcastDirty = true;
+  let lastBroadcastJson = "";
   const leaderboardCacheTtlMs = Math.max(0, Number(config.LEADERBOARD_CACHE_TTL_MS || 3000));
   let leaderboardCache = null;
 
@@ -1810,12 +1814,20 @@ export function createApp({ prisma, config }) {
     };
   };
 
+  const markBroadcastDirty = () => { sseBroadcastDirty = true; };
+
   const broadcastPublicSnapshot = async () => {
     if (publicStreamClients.size === 0) {
       return;
     }
 
     const snapshot = await buildPublicRealtimeSnapshot();
+    const json = JSON.stringify(snapshot);
+    if (!sseBroadcastDirty && json === lastBroadcastJson) {
+      return;
+    }
+    sseBroadcastDirty = false;
+    lastBroadcastJson = json;
     for (const res of publicStreamClients) {
       writeSseEvent(res, "snapshot", snapshot);
     }
@@ -2722,6 +2734,7 @@ export function createApp({ prisma, config }) {
       return res.status(404).json({ ok: false, message: "Asset file not found." });
     }
 
+    res.set("Cache-Control", "public, max-age=3600, immutable");
     return res.sendFile(filePath);
   });
 
