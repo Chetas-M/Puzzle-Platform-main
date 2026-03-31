@@ -4,5 +4,8 @@ export function deriveRemainingSeconds({ now, eventEndsAt, penaltiesSeconds }) {
 }
 
 export function normalizeAnswer(value) {
-  return `${value || ""}`.trim().toUpperCase();
+  return `${value || ""}`
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
 }
