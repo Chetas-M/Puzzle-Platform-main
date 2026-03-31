@@ -1,6 +1,7 @@
 import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 
@@ -48,8 +49,41 @@ function buildHints(puzzleId, hintRows) {
   }));
 }
 
+async function confirmWipe() {
+  if (process.argv.includes("--force")) {
+    return;
+  }
+
+  const counts = {
+    teams: await prisma.team.count(),
+    puzzles: await prisma.puzzle.count(),
+    solves: await prisma.puzzleSolve.count(),
+    attempts: await prisma.puzzleAttempt.count()
+  };
+
+  console.log("\n\u26A0\uFE0F  WARNING: This will DELETE ALL existing data:");
+  console.log(`   \u2022 ${counts.teams} teams`);
+  console.log(`   \u2022 ${counts.puzzles} puzzles (including manually added ones)`);
+  console.log(`   \u2022 ${counts.solves} solves`);
+  console.log(`   \u2022 ${counts.attempts} attempts`);
+  console.log("   \u2022 All sessions, hints, notepads, clipboard entries, audit logs\n");
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((resolve) => {
+    rl.question("Type YES to confirm: ", resolve);
+  });
+  rl.close();
+
+  if (answer.trim() !== "YES") {
+    console.log("Aborted. No changes made.");
+    process.exit(0);
+  }
+}
+
 async function main() {
   const PUZZLES = loadPuzzleBank();
+
+  await confirmWipe();
 
   await prisma.antiCheatWarning.deleteMany();
   await prisma.hintRevealAudit.deleteMany();
@@ -90,9 +124,29 @@ async function main() {
 
   await prisma.team.createMany({
     data: [
-      { code: "TEAM01", name: "Quantum Foxes" },
-      { code: "TEAM02", name: "Cipher Owls" },
-      { code: "TEAM03", name: "Vector Lynx" }
+      { code: "TimeHackers101", name: "Time Hackers" },
+      { code: "CtrlShiftElite102", name: "Ctrl Shift Elite" },
+      { code: "AlooKiGang103", name: "Aloo Ki Gang" },
+      { code: "NeonLogic104", name: "Neon Logic" },
+      { code: "WizardsofAthens105", name: "Wizards of Athens" },
+      { code: "CodeCrusadors106", name: "Code Crusadors" },
+      { code: "TeamCoder107", name: "Team Coder" },
+      { code: "ZeroDaySquad108", name: "Zero Day Squad" },
+      { code: "TeamBang109", name: "Team Bang" },
+      { code: "BinaryBrains110", name: "Binary Brains" },
+      { code: "UNO111", name: "UNO" },
+      { code: "TeamAyush112", name: "Team Ayush" },
+      { code: "Castor113", name: "Castor" },
+      { code: "Brute114", name: "Brute" },
+      { code: "LalSarkar115", name: "Lal Sarkar" },
+      { code: "BrainByte116", name: "Brain Byte" },
+      { code: "TeamPhoenix117", name: "Team Phoenix" },
+      { code: "MysteryMinds118", name: "Mystery Minds" },
+      { code: "DevStorm119", name: "DevStorm" },
+      { code: "TheRecursiveSquad120", name: "The Recursive Squad" },
+      { code: "TechNerds121", name: "Tech Nerds" },
+      { code: "HailMary122", name: "Hail Mary" },
+      { code: "ERROR123", name: "ERROR" }
     ]
   });
 
