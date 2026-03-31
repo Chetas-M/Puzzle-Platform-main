@@ -557,6 +557,39 @@ export default function PuzzlePage() {
                   <textarea className="h-72 w-full rounded-xl border border-slate-600 bg-slate-950/70 p-3 font-mono text-sm" value={notepad} onChange={(event) => setNotepad(event.target.value)} disabled={isInputDisabled} />
                 </section>
                 <ClipboardTray entries={clipboardEntries} />
+                <section className="rounded-2xl border border-slate-700/40 bg-card p-4">
+                  <h3 className="mb-2 font-semibold">Points Reference</h3>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="text-muted">
+                        <th className="pb-1">Puzzle Type</th>
+                        <th className="pb-1 text-right">Pts</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { type: "Pattern Decode", pts: 3 },
+                        { type: "Story Puzzle", pts: 3 },
+                        { type: "Audio Cipher", pts: 3 },
+                        { type: "Progressive Caesar", pts: 3 },
+                        { type: "Image Cipher", pts: 2 },
+                        { type: "HTML Inspect", pts: 2 },
+                        { type: "ASCII Art Puzzle", pts: 2 },
+                        { type: "Book Cipher", pts: 2 },
+                        { type: "Fix the Errors", pts: 2 },
+                        { type: "Fix the Bug", pts: 2 },
+                        { type: "Print Statement Maze", pts: 2 },
+                        { type: "Time-Based OTP", pts: 1 },
+                        { type: "Reverse Text", pts: 1 }
+                      ].map((row) => (
+                        <tr key={row.type} className="border-t border-slate-700/40">
+                          <td className="py-1">{row.type}</td>
+                          <td className={`py-1 text-right font-bold ${row.pts === 3 ? "text-amber-300" : row.pts === 2 ? "text-emerald-300" : "text-slate-400"}`}>{row.pts}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
               </aside>
             </div>
           </>
