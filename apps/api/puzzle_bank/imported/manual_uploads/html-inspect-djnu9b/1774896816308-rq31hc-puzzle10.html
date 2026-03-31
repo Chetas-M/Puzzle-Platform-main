@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- TRANSMISSION_CODE: ECLIPSE -->
+<head>
+  <meta charset="UTF-8">
+  <title>Puzzle 10: The Radio Tower — [CALLSIGN: ECLIPSE]</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=VT323&family=Space+Mono:wght@400;700&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #050508;
+      color: #ff6600;
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tower {
+      width: 620px;
+      background: #0a0a0f;
+      border: 1px solid #331a00;
+      border-radius: 6px;
+      padding: 36px;
+      box-shadow: 0 0 60px rgba(255,80,0,0.1);
+    }
+    h1 {
+      font-family: 'VT323', monospace;
+      font-size: 2.8rem;
+      color: #ff6600;
+      text-align: center;
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 12px rgba(255,100,0,0.5);
+      margin-bottom: 6px;
+    }
+    .freq { text-align: center; font-size: 0.75rem; color: #663300; letter-spacing: 0.25em; margin-bottom: 28px; }
+    .screen {
+      background: #000;
+      border: 1px solid #331a00;
+      border-radius: 4px;
+      padding: 20px;
+      font-family: 'VT323', monospace;
+      font-size: 1.3rem;
+      line-height: 2;
+      color: #cc4400;
+      margin-bottom: 24px;
+    }
+    .screen .line { opacity: 0.6; }
+    .screen .active { color: #ff8800; opacity: 1; }
+    .screen .blink { animation: blink 1s infinite; color: #ff4400; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .knob-row { display: flex; gap: 20px; margin-top: 20px; }
+    .knob {
+      flex: 1; background: #0f0f15; border: 1px solid #331a00;
+      border-radius: 4px; padding: 14px; text-align: center;
+      font-size: 0.7rem; letter-spacing: 0.15em; color: #663300;
+    }
+    .knob strong { display: block; font-size: 1.2rem; color: #ff6600; margin-top: 6px; }
+    p { line-height: 1.8; font-size: 0.85rem; color: #7a3300; margin-bottom: 14px; }
+    .note { border-left: 3px solid #331a00; padding: 10px 16px; font-size: 0.8rem; color: #553300; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="tower">
+    <h1>📡 RADIO TOWER</h1>
+    <div class="freq">FREQUENCY: 88.7 MHz — RESTRICTED BAND</div>
+
+    <div class="screen">
+      <div class="line">> SIGNAL ACQUIRED . . . . . . . . OK</div>
+      <div class="line">> OPERATOR: UNKNOWN</div>
+      <div class="active">> CALLSIGN: ██████████</div>
+      <div class="blink">> AWAITING AUTHENTICATION . . . _</div>
+    </div>
+
+    <p>This radio tower broadcasts on a restricted frequency. Every transmission is tagged with an operator callsign — but it has been redacted from the display.</p>
+    <p>The callsign is hidden somewhere in the page's own structure — not in the body, not in the CSS. Look at the document itself: its opening tag, its title, its comments.</p>
+
+    <div class="knob-row">
+      <div class="knob">SIGNAL<strong>STRONG</strong></div>
+      <div class="knob">BAND<strong>UHF</strong></div>
+      <div class="knob">STATUS<strong>LOCKED</strong></div>
+    </div>
+
+    <div class="note" style="margin-top:24px">
+      "The callsign is the key. It appears three times in the document — twice hidden, once in plain sight to those who view source."
+    </div>
+
+    <!-- CALLSIGN: ECLIPSE -->
+    <!-- Hint: also check the HTML opening tag comment and the page <title> -->
+  </div>
+</body>
+</html>

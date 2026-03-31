@@ -1,0 +1,57 @@
+"""
+PROBLEM STATEMENT:
+A system records votes for candidates.
+
+1. Input: List of (Voter Name, Candidate Chosen)
+2. Count total votes for each candidate
+3. If a voter votes for an invalid candidate → ignore
+4. Valid candidates: "A", "B", "C"
+5. Print vote count for each candidate
+6. Find the winner (highest votes)
+7. Count how many invalid votes occurred
+
+COPY THE TEXT AND TRY TO FIX IT IN ONLINE COMPILER PROVIDED
+"""
+
+def count_votes(votes):
+    result = {"A": 0, "B": 0, "C": 0}
+    invalid = 0
+    
+    for v in votes
+        name = v[0]
+        choice = v[1]
+        
+        if choice not in result
+            invalid = invalid + 1
+        else:
+            result[choice] = result[choice] + 1
+    
+    winner = ""
+    max_votes = 0
+    
+    for c in result:
+        if result[c] > max_votes
+            max_votes = result[c]
+            winner = c
+    
+    print("Votes:", result)
+    print("Winner is: " + winner)
+    
+    return invalid, Winner
+
+
+votes = [
+    ["Aman", "A"],
+    ["Riya", "B"],
+    ["Kabir", "D"],
+    ["Neha", "A"],
+    ["Arjun", "C"],
+    ["Simran", "E"]
+]
+
+invalid_votes = 0
+
+invalid_votes, winner = count_votes(Votes)
+
+print("Invalid votes: " + invalid_votes)
+print("Final winner: " + winner)

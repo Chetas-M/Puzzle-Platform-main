@@ -1,0 +1,93 @@
+# 🕵️‍♂️ THE DEVELOPER’S LAST COMMIT
+
+## 📖 Story
+
+During a hackathon, a developer named **Rohan** was found dead at his desk.
+
+His laptop screen showed:
+
+Last commit: "fix_bug_143"
+Time: 22:40
+
+There are 4 suspects:
+
+* Aarav (Backend Developer)
+* Bhavna (UI Developer)
+* Chirag (DevOps Engineer)
+* Divya (Tester)
+
+Your task is to uncover the truth.
+
+---
+
+# 🧩 STAGE 1: SERVER LOGS
+
+```
+22:10 - Aarav logged in  
+22:15 - Bhavna logged in  
+22:20 - Chirag logged in  
+22:25 - Divya logged in  
+
+22:35 - ERROR 403 (Unauthorized Access)  
+22:38 - Access granted: USER_ID = 3  
+```
+
+### ❓ Question:
+
+Who accessed the system at 22:38?
+
+👉 Enter answer (name only):
+
+---
+
+# 🧩 STAGE 2: ALIBI CHECK
+
+Statements:
+
+* Aarav: “I left before 22:30”
+* Bhavna: “I was designing till 23:00”
+* Chirag: “I fixed a server issue at 22:40”
+* Divya: “Chirag is lying”
+
+### 🧠 Clue:
+
+Exactly ONE person is lying.
+
+---
+
+### ❓ Question:
+
+At what time did the incident most likely occur?
+
+👉 Enter answer in HHMM format:
+
+---
+
+# 🧩 STAGE 3: FINAL LOCK
+
+Clue found in code:
+
+```
+key = "fix_bug_143"
+hint = "shift by time digits"
+```
+
+---
+
+### ❓ Question:
+
+What is the final unlock code?
+
+👉 Enter answer in format: XXXXXXX
+
+---
+
+# 🎯 FINAL SUBMISSION FORMAT
+
+Submit all answers together:
+
+KILLER: ______
+TIME: ______
+CODE: ______
+
+Good luck, detective 🕵️‍♂️
