@@ -244,6 +244,46 @@ const PUZZLE_BASE_CONFIGS = {
     readmeFileName: "README_FIX_THE_BUG.txt",
     readmeContent:
       "FIX THE BUG BASE INSTRUCTIONS\n\n1. Download the attached buggy Python code file.\n2. Read the code and identify the bug(s).\n3. Fix the code and run it using the online compiler (Programiz).\n4. Copy the exact output and paste it into the answer field.\n5. Submit your answer."
+  },
+  patternDecode: {
+    key: "patternDecode",
+    label: "Pattern Decode",
+    slugPrefix: "pattern-decode",
+    titlePrefix: "Pattern Decode",
+    type: "pattern_decode",
+    prompt:
+      "Analyze the provided pattern sequence, identify the encoding rule, and decode the hidden message. Submit the final decoded answer.",
+    answerKeyPlaceholder: "SET_ME",
+    hintPenaltySeconds: 0,
+    builtinUtils: ["encodingChain", "baseConverter", "frequencyAnalyzer"],
+    hints: {
+      tier1: { content: "Look for repeating sequences or numerical progressions in the pattern.", penaltySeconds: 0 },
+      tier2: { content: "Try mapping symbols to letters using positional or mathematical relationships.", penaltySeconds: 1 },
+      tier3: { content: "The decoded output should form a recognizable word or phrase.", penaltySeconds: 2 }
+    },
+    readmeFileName: "README_PATTERN_DECODE.txt",
+    readmeContent:
+      "PATTERN DECODE BASE INSTRUCTIONS\n\n1. Study the provided pattern or encoded sequence carefully.\n2. Identify the encoding rule or transformation applied.\n3. Apply the reverse transformation to decode the message.\n4. Submit the final decoded answer exactly as required."
+  },
+  storyPuzzle: {
+    key: "storyPuzzle",
+    label: "Story Puzzle",
+    slugPrefix: "story-puzzle",
+    titlePrefix: "Story Puzzle",
+    type: "story_puzzle",
+    prompt:
+      "Read the story carefully, extract the hidden clues embedded within the narrative, and piece them together to form the final answer.",
+    answerKeyPlaceholder: "SET_ME",
+    hintPenaltySeconds: 0,
+    builtinUtils: ["encodingChain", "cipherDecoder"],
+    hints: {
+      tier1: { content: "Pay close attention to capitalized words, first letters, or unusual phrasing.", penaltySeconds: 0 },
+      tier2: { content: "The clues follow a specific order \u2014 read paragraphs sequentially.", penaltySeconds: 1 },
+      tier3: { content: "Combine extracted letters or words to form the final answer.", penaltySeconds: 2 }
+    },
+    readmeFileName: "README_STORY_PUZZLE.txt",
+    readmeContent:
+      "STORY PUZZLE BASE INSTRUCTIONS\n\n1. Read the provided story or narrative text.\n2. Identify hidden clues within the text (acrostics, bold words, patterns, etc.).\n3. Extract and assemble the clues in order.\n4. Submit the final assembled answer."
   }
 };
 
@@ -2696,13 +2736,13 @@ export default function AdminPage() {
                 )}
               </article>
 
-              <article ref={leaderboardPanelRef} className="rounded-2xl border border-slate-700/40 bg-card p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="font-semibold">Leaderboard</h2>
+              <article ref={leaderboardPanelRef} className={`rounded-2xl border border-slate-700/40 bg-card ${monitorFullscreenState.leaderboard ? "flex flex-col h-full p-6" : "p-4"}`}>
+                <div className={`flex items-center justify-between ${monitorFullscreenState.leaderboard ? "mb-4" : "mb-3"}`}>
+                  <h2 className={monitorFullscreenState.leaderboard ? "text-2xl font-bold" : "font-semibold"}>Leaderboard</h2>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
+                      className={`rounded-lg border border-slate-500 ${monitorFullscreenState.leaderboard ? "px-4 py-2 text-sm" : "px-3 py-1 text-xs"}`}
                       onClick={() =>
                         toggleMonitorPanelFullscreen(
                           leaderboardPanelRef,
@@ -2714,7 +2754,7 @@ export default function AdminPage() {
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-500 px-3 py-1 text-xs"
+                      className={`rounded-lg border border-slate-500 ${monitorFullscreenState.leaderboard ? "px-4 py-2 text-sm" : "px-3 py-1 text-xs"}`}
                       onClick={() => loadMonitoring().catch(() => {})}
                     >
                       Refresh
@@ -2722,17 +2762,17 @@ export default function AdminPage() {
                   </div>
                 </div>
                 {leaderboardRows.length === 0 ? (
-                  <p className="text-sm text-muted">No leaderboard data yet.</p>
+                  <p className={monitorFullscreenState.leaderboard ? "text-lg text-muted" : "text-sm text-muted"}>No leaderboard data yet.</p>
                 ) : (
-                  <div className="max-h-[260px] space-y-2 overflow-auto">
+                  <div className={`space-y-2 overflow-auto ${monitorFullscreenState.leaderboard ? "flex-1" : "max-h-[260px]"}`}>
                     {leaderboardRows.map((entry) => (
-                      <section key={`leader-${entry.team.id}`} className="rounded-lg border border-slate-700/50 p-3 text-xs">
+                      <section key={`leader-${entry.team.id}`} className={`rounded-lg border border-slate-700/50 ${monitorFullscreenState.leaderboard ? "p-4 text-base" : "p-3 text-xs"}`}>
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold">#{entry.rank} {entry.team.name}</p>
-                          <p className="text-emerald-300">{entry.points} pts</p>
+                          <p className={monitorFullscreenState.leaderboard ? "text-xl font-bold" : "font-semibold"}>#{entry.rank} {entry.team.name}</p>
+                          <p className={`text-emerald-300 font-bold ${monitorFullscreenState.leaderboard ? "text-xl" : ""}`}>{entry.points} pts</p>
                         </div>
-                        <p className="text-muted">
-                          {entry.team.code} | Hint penalty: {entry.hintPenaltyPoints ?? 0} pts | Total time: {entry.totalElapsedSeconds !== null && entry.totalElapsedSeconds !== undefined ? `${Math.floor(entry.totalElapsedSeconds / 60)}m ${entry.totalElapsedSeconds % 60}s` : "--"}
+                        <p className={`text-muted ${monitorFullscreenState.leaderboard ? "text-sm mt-1" : ""}`}>
+                          Solved: {entry.solvedCount ?? 0} | Hint penalty: {entry.hintPenaltyPoints ?? 0} pts | Total time: {entry.totalElapsedSeconds !== null && entry.totalElapsedSeconds !== undefined ? `${Math.floor(entry.totalElapsedSeconds / 60)}m ${entry.totalElapsedSeconds % 60}s` : "--"}
                         </p>
                       </section>
                     ))}
