@@ -1064,7 +1064,10 @@ const PUZZLE_POINTS = {
   "book cipher": 2,
   "reverse text puzzle": 1,
   "fix the errors": 2,
-  "print statement maze": 2
+  "print statement maze": 2,
+  "fix the bug": 2,
+  "pattern decode": 3,
+  "story puzzle": 3
 };
 
 function getPuzzlePoints(title) {
